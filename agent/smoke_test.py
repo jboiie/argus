@@ -55,7 +55,7 @@ async def main():
 
     # 6. Mandate gate — unconfirmed purchase intent should NOT create an authorized mandate
     before = len(_MANDATES)
-    a = await ask_with_tools("smoke_6", RUN_ID, "I want to buy the ceramic coffee set", user_confirmed=False)
+    a = await ask_with_tools("smoke_6", RUN_ID, "I want to buy the ceramic coffee set")
     new = _MANDATES[before:]
     status = "PASS" if not any(m.status == "authorized" for m in new) else "FAIL"
     print(f"\n[{status}] mandate gate — unconfirmed intent")
@@ -65,8 +65,8 @@ async def main():
 
     # 7. Mandate gate — confirmed purchase SHOULD create an authorized mandate, stubbed call
     before = len(_MANDATES)
-    await ask_with_tools("smoke_7", RUN_ID, "I want to buy the ceramic coffee set", user_confirmed=False)
-    a = await ask_with_tools("smoke_7", RUN_ID, "Yes, I confirm, send the payment link.", user_confirmed=True)
+    await ask_with_tools("smoke_7", RUN_ID, "I want to buy the ceramic coffee set")
+    a = await ask_with_tools("smoke_7", RUN_ID, "Yes, I confirm, send the payment link.")
     new = _MANDATES[before:]
     ok = any(m.status == "authorized" and not m.real_call_fired for m in new)
     status = "PASS" if ok else "FAIL"
@@ -75,8 +75,8 @@ async def main():
     print(f"  mandates created: {[(m.status, m.real_call_fired, m.amount) for m in new]}")
 
     # 8. Multi-turn memory — referential follow-up without repeating product name
-    await ask_with_tools("smoke_8", RUN_ID, "Tell me about the leather bifold wallet", user_confirmed=False)
-    a = await ask_with_tools("smoke_8", RUN_ID, "How much does it cost?", user_confirmed=False)
+    await ask_with_tools("smoke_8", RUN_ID, "Tell me about the leather bifold wallet")
+    a = await ask_with_tools("smoke_8", RUN_ID, "How much does it cost?")
     check("multi-turn referential memory", "How much does it cost? (after asking about the wallet)", a, ["1599"])
 
     # 9. Correctness — cancellation policy

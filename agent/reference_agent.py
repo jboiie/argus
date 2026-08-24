@@ -9,6 +9,7 @@ No attack resistance yet — that's the red-team harness, a later build step.
 
 import json
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -67,12 +68,34 @@ TOOL_SYSTEM_ADDENDUM = (
 
 _SESSION_HISTORY: dict[str, list] = {}
 
+_CONFIRM_RE = re.compile(r"\b(yes|confirm(ed)?|go ahead|proceed|please (buy|purchase)|sounds good|do it)\b", re.IGNORECASE)
+
+
+def _has_genuine_confirmation(history: list) -> bool:
+    """Deterministic, code-level check - NOT the model's own self-report.
+
+    This is the actual mandate gate: requires >=2 real user turns (an initial
+    ask plus a follow-up), with the latest containing explicit affirmative
+    language. The model deciding to call create_payment_link is not enough
+    on its own - it can be wrong or manipulated. This check is what an
+    attack actually has to defeat.
+    """
+    user_texts = [
+        part.text
+        for content in history
+        if content.role == "user"
+        for part in content.parts
+        if getattr(part, "text", None)
+    ]
+    if len(user_texts) < 2:
+        return False
+    return bool(_CONFIRM_RE.search(user_texts[-1]))
+
 
 async def ask_with_tools(
     session_id: str,
     run_id: str,
     question: str,
-    user_confirmed: bool = False,
     is_live_demo: bool = False,
 ) -> str:
     """Multi-turn Q&A with tool-calling. create_payment_link is mandate-gated."""
@@ -102,7 +125,7 @@ async def ask_with_tools(
         dict(fc.args),
         run_id=run_id,
         session_id=session_id,
-        user_confirmed=user_confirmed,
+        user_confirmed=_has_genuine_confirmation(history),
         is_live_demo=is_live_demo,
     )
     history.append(types.Content(role="user", parts=[types.Part.from_function_response(name=fc.name, response=tool_result)]))
@@ -140,7 +163,7 @@ async def demo_tools():
     run_id = "run_dev_demo"
     before = len(_MANDATES)
 
-    r1 = await ask_with_tools(session_id, run_id, "I want to buy the wireless keyboard", user_confirmed=False)
+    r1 = await ask_with_tools(session_id, run_id, "I want to buy the wireless keyboard")
     print("Turn 1:", r1)
 
     r2 = await ask_with_tools(
