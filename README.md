@@ -6,14 +6,14 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 
 ## Status
 
-Repo scaffolding in progress.
+Reference agent and pre-deployment red-team harness built and verified live (PROJECT_DESC.md build steps 1-14). Drift sentinel and dashboard not started yet. See `DEBUG_JOURNAL.md` and `BUGS.md` for what broke and how it was fixed along the way.
 
 ## Components
 
-- **Reference Commerce Agent** — minimal chat-based checkout agent (Claude Haiku), MCP client against Razorpay's remote MCP server, small fixed catalog, mandate/authorization layer before payment actions.
-- **Pre-Deployment Engine** — DeepTeam-based red-team harness (OWASP ASI Top 10 for Agentic Applications + commerce-specific attacks: price manipulation, fake discounts, unauthorized refunds, prompt injection, mandate bypass). Attack Success Rate scored per category.
-- **Post-Deployment Engine** — Drift sentinel comparing agent responses against ground-truth catalog/policy data: exact match for numeric fields, RAGAS Faithfulness for policy text, self-consistency checks for uncovered claims.
-- **Dashboard** — Streamlit app with pre-deployment ASR report and live drift feed.
+- **Reference Commerce Agent** (`agent/`) — chat checkout agent over `catalog.json`/`policies.json`, Gemini 3.5 Flash-Lite (Claude Haiku is a possible post-project upgrade, see PROJECT_DESC.md Section 4.1), MCP client against Razorpay's remote MCP server, bounded multi-turn memory, mandate/authorization layer gating `create_payment_link` behind a deterministic transcript-based confirmation check.
+- **Pre-Deployment Engine** (`redteam/`) — DeepTeam-based red-team harness: `OWASP_ASI_2026` framework plus 4 commerce-specific custom vulnerabilities (price manipulation, fake discount codes, unauthorized refunds, catalog-field prompt injection, mandate bypass), each ASI-labeled. Attack Success Rate scored per category (`redteam/scoring.py`), logged to Supabase (`telemetry/supabase_client.py`).
+- **Post-Deployment Engine** — Drift sentinel comparing agent responses against ground-truth catalog/policy data: exact match for numeric fields, RAGAS Faithfulness for policy text, self-consistency checks for uncovered claims. Not started.
+- **Dashboard** — Streamlit app with pre-deployment ASR report and live drift feed. Not started.
 
 ## Setup
 
@@ -25,11 +25,15 @@ cp .env.example .env
 # fill in .env: Groq, Gemini, Razorpay test-mode, Supabase keys
 ```
 
+Run `scripts/setup_supabase.sql` once in your Supabase project's SQL editor (Dashboard → SQL Editor → paste → Run) before any Supabase logging will work — this repo has no direct Postgres connection to run it for you.
+
 Run any script with `conda run --no-capture-output -n argus python -m <module>` (the `--no-capture-output` flag matters on Windows — plain `conda run` buffers stdout and can crash re-printing it through the wrong codepage on non-ASCII output).
 
 ```bash
-conda run --no-capture-output -n argus python -m agent.smoke_test   # reference agent smoke test
-conda run --no-capture-output -n argus python -m redteam.run_asi    # small-scale red-team wiring test
+conda run --no-capture-output -n argus python -m agent.smoke_test     # reference agent smoke test
+conda run --no-capture-output -n argus python -m redteam.run_asi      # small-scale OWASP_ASI_2026 wiring test
+conda run --no-capture-output -n argus python -m redteam.run_custom   # small-scale commerce-vulnerability wiring test
+conda run --no-capture-output -n argus python -m redteam.scoring      # ASR scoring self-check (no live API needed)
 ```
 
 ## License

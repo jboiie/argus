@@ -96,25 +96,25 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 ## 7. Build Steps (ordered, not tied to calendar days — work through in sequence)
 
 **Foundation**
-1. Read `../aegis/README.md` + `../aegis/GRAPH_REPORT.md` per Section 0; decide exact files to port.
-2. Repo skeleton — folders for reference agent, red-team harness, drift sentinel, dashboard, shared ground truth.
-3. `graphify install --project` + `graphify hook install` in this repo.
-4. Ground-truth data — `catalog.json` + `policies.json`. Both engines read from this; build it first.
-5. Environment setup — Groq/Gemini/Claude API keys, Razorpay test-mode keys, Supabase project, `.env` template.
+1. [x] Read `../aegis/README.md` + `../aegis/GRAPH_REPORT.md` per Section 0; decide exact files to port.
+2. [x] Repo skeleton — folders for reference agent, red-team harness, drift sentinel, dashboard, shared ground truth.
+3. [x] `graphify install --project` + `graphify hook install` in this repo.
+4. [x] Ground-truth data — `catalog.json` + `policies.json`. Both engines read from this; build it first.
+5. [x] Environment setup — Groq/Gemini/Claude API keys, Razorpay test-mode keys, Supabase project, `.env` template. (Claude key deferred, see Section 4.1 — Gemini powers the reference agent for v1.)
 
 **Reference Agent**
-6. Basic single-turn Q&A agent answering from ground truth via Gemini 3.5 Flash-Lite, no attack resistance yet.
-7. Wire up as an MCP client against Razorpay's remote MCP server.
-8. Add light multi-turn memory.
-9. Add the authorization/mandate layer before any payment-link action.
-10. Manual smoke test — 10 sample questions/actions, confirm correctness and that mandate checks fire.
+6. [x] Basic single-turn Q&A agent answering from ground truth via Gemini 3.5 Flash-Lite, no attack resistance yet.
+7. [x] Wire up as an MCP client against Razorpay's remote MCP server.
+8. [x] Add light multi-turn memory.
+9. [x] Add the authorization/mandate layer before any payment-link action.
+10. [x] Manual smoke test — 10 sample questions/actions, confirm correctness and that mandate checks fire.
 
 **Pre-Deployment Harness**
-11. Install DeepTeam, wire up `OWASP_ASI_2026` framework against the reference agent's `model_callback`, pointed at Groq/Gemini.
-12. Add custom vulnerabilities: price manipulation, fake discount codes, unauthorized refunds, catalog-field prompt injection, mandate bypass.
-13. Attack Success Rate scoring per category, each labeled with its ASI code.
-14. Connect to Supabase logging.
-15. First full batch run at real volume; sanity-check the numbers.
+11. [x] Install DeepTeam, wire up `OWASP_ASI_2026` framework against the reference agent's `model_callback`, pointed at Groq/Gemini.
+12. [x] Add custom vulnerabilities: price manipulation, fake discount codes, unauthorized refunds, catalog-field prompt injection, mandate bypass.
+13. [x] Attack Success Rate scoring per category, each labeled with its ASI code.
+14. [x] Connect to Supabase logging. (Code complete and connection-verified; `scripts/setup_supabase.sql` still needs to be run in the Supabase SQL editor before live inserts succeed — see DEBUG_JOURNAL.md 2026-08-24.)
+15. [ ] First full batch run at real volume; sanity-check the numbers. **Blocked on Groq's free-tier daily token cap** (hit 198,802/200,000 from build-time testing alone) — needs either next day's quota reset or a Developer-tier decision before this can run at real volume. See BUGS.md.
 
 **Drift Sentinel**
 16. Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for policy text.
