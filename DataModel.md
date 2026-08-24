@@ -26,9 +26,10 @@ Metadata for what `run_id` (on Attack Event and Drift Incident) actually refers 
 | Field | Type | Notes |
 |---|---|---|
 | `run_id` | string (UUID) | |
+| `run_type` | enum | `redteam` \| `drift_sample` — which engine produced this run, without joining out to Attack Event/Drift Incident to find out |
 | `started_at` | timestamptz | |
 | `ended_at` | timestamptz, nullable | null while the run is in progress |
-| `label` | string | e.g. `"phase_a_baseline"`, `"drift_after_price_change"` |
+| `label` | string | validated against a fixed set at write time (same typo-fragmentation risk as `asi_category`/`check_type` — this string is exact-matched to pull "baseline" vs "post-injection" for the one required before/after comparison). e.g. `"phase_a_baseline"`, `"drift_after_price_change"` |
 | `notes` | string, optional | free text — e.g. which ground-truth state was active; cross-reference with `DEBUG_JOURNAL.md` |
 
 ## Entity 1: Product (`catalog.json`)
@@ -62,6 +63,7 @@ Logged for **every** mandate creation attempt, regardless of whether a real Razo
 | Field | Type | Notes |
 |---|---|---|
 | `mandate_id` | string (UUID) | |
+| `run_id` | string (UUID) | same reasoning as Attack Event/Drift Incident — separates phases, lets a crashed/rerun batch's orphaned rows be identified and excluded |
 | `session_id` | string | |
 | `scope` | enum | `purchase` \| `refund` \| `discount_application` |
 | `amount` | integer | paise — see currency convention above |
@@ -69,7 +71,8 @@ Logged for **every** mandate creation attempt, regardless of whether a real Razo
 | `authorized_at` | timestamptz | |
 | `expires_at` | timestamptz | mandate validity window — without this there's no way to test or demo a **replay attack** (reusing an old, legitimately-issued mandate to authorize a new action), a well-known attack class adjacent to ASI03. `"mandate_replay"` should be an explicit `vulnerability` value in Attack Event once the harness covers it. |
 | `user_confirmed` | boolean | did a real user-confirmation turn precede this |
-| `status` | enum | `authorized` \| `denied` \| `bypassed` — needed to score ASI03. **Derived, not independently maintained**: set by whatever writes the linked Attack Event row (via `mandate_id`), not written separately by the mandate layer itself. Two independently-written fields describing the same real-world outcome is how they end up disagreeing. |
+| `status` | enum | `authorized` \| `denied` — set once, at creation, by the mandate layer's own real-time check (in scope, not expired, `user_confirmed`). This is the primary write path and covers every mandate, not just ones an attack targets — `mandate_id` on Attack Event is optional, so most mandates (ordinary smoke-test/drift-sampler traffic) never get a linked Attack Event at all. **Immutable once set** — never overwritten in place. If an attack later finds this mandate bypassable, that's a separate fact, not a correction to this field: see `bypass_confirmed_at`. |
+| `bypass_confirmed_at` | timestamptz, nullable | set by whatever writes the linked Attack Event row (via `mandate_id`) if an attack got past this mandate's check. Kept separate from `status` so the original authorized/denied record stays an immutable audit trail, not a field that gets mutated after the fact — the kind of thing a panel would poke at on a project pitched around auditability. |
 | `is_live_demo` | boolean | intent flag — whether this mandate is allowed to trigger a real Razorpay call |
 | `real_call_fired` | boolean | actual outcome — whether a real Razorpay call happened (may diverge from `is_live_demo` on error/stub) |
 
@@ -87,8 +90,8 @@ Fields matched against DeepTeam's actual test-case objects, not assumed.
 | `vulnerability_type` | string | e.g. `"unauthorized_refund"` — the sub-category under `vulnerability`. Kept separate rather than folded into one field, since a single custom vulnerability can declare several types and collapsing them loses that grouping. |
 | `attack_method` | string | the technique used (Roleplay, PromptInjection, etc.) — DeepTeam provides this separately from `vulnerability`/`vulnerability_type`; needed for "which technique gets past guardrails most" breakdown |
 | `prompt` | string | for multi-turn attacks (DeepTeam's progression/multi-turn strategies), holds the final triggering turn only — full build-up across turns lives in Session/Conversation Turn under the same `session_id` |
-| `response` | string | same multi-turn convention as `prompt` — final turn only |
-| `reason` | string | DeepTeam's judge justification for the score — required for the full audit trail (Section 4.5) |
+| `response` | string, nullable | same multi-turn convention as `prompt` — final turn only. Nullable for `outcome = errored` (API call never returned a response). |
+| `reason` | string, nullable | DeepTeam's judge justification for the score — required for the full audit trail (Section 4.5). Nullable alongside `response`: same cause, `outcome = errored` means no judge ran, so no judge reasoning exists. |
 | `outcome` | enum | `bypassed` \| `defended` \| `errored` — not a boolean. DeepTeam's own results track passing/failing/errored as three distinct counts; a free-tier API run will genuinely error sometimes (rate limit, timeout, malformed response), and a boolean forces either silently dropping those rows or miscoding them as a real pass/fail, corrupting ASR. **DeepTeam convention is `score: 1 = defended, 0 = vulnerable` — map to `outcome` on ingest (never pass the raw score through as-is), with a caught API failure mapped to `errored` before it ever reaches DeepTeam's scoring.** |
 | `session_id` | string | |
 | `mandate_id` | string, optional | FK — pins down which mandate a bypass attempt targeted, since a session can contain multiple mandates |
@@ -109,7 +112,7 @@ Fields matched against DeepTeam's actual test-case objects, not assumed.
 | `sampled_responses` | array, optional | populated only for `self_consistency` rows — the N sampled answers the majority/score were computed from |
 | `score` | float (numeric), nullable | must be a real float column, not int/boolean — holds both DeepTeam's binary 0/1 and RAGAS/self-consistency's continuous 0–1 scores. null for `numeric` (exact match is binary). For `self_consistency`: agreement rate across samples. |
 | `check_status` | enum | `completed` \| `errored` — parallel to Attack Event's `outcome`, same reasoning: a free-tier API failure mid-check (RAGAS/self-consistency call errors) needs a distinct state, not a miscoded `flagged` value. |
-| `flagged` | boolean | only meaningful when `check_status = completed` |
+| `flagged` | boolean, nullable | `null` when `check_status = errored` — not `false`. A stray `false` on an errored row would read as "checked and clean" to a naive count query, which is wrong: it was never checked. |
 | `reviewed_at` | timestamptz, nullable | when a human reviewed this row for the false-positive cost metric — null means not yet reviewed |
 | `is_false_positive` | boolean, nullable | the review's verdict, separate from whether it was reviewed at all. null = not yet reviewed, true/false = the actual finding. (Splits what was one conflated `false_positive_reviewed` boolean.) |
 | `session_id` | string | which conversation produced this incident — required for the audit trail |
@@ -125,6 +128,7 @@ Persisted in full — this is synthetic test traffic against Argus's own referen
 | Field | Type | Notes |
 |---|---|---|
 | `session_id` | string | |
+| `run_id` | string (UUID) | same reasoning as the other event tables — same automated runs produce these rows, equally exposed to a mid-run crash |
 | `session_type` | enum | `smoke_test` \| `drift_sampler` \| `attack` \| `demo` — distinguishes which producer created the session. `demo` marks a deliberately staged session (graceful-failure refusal, drift-injection clip) so it can be pulled by a plain filter for the video instead of remembering which run happened to be the staged one. |
 | `turn_index` | integer | unique together with `session_id` |
 | `role` | enum | `user` \| `agent` |
