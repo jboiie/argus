@@ -31,6 +31,16 @@ GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_MODEL = "openai/gpt-oss-20b"
 MAX_COMPLETION_TOKENS = 4096
 
+# All Groq calls share one 8000 TPM budget on this key/model regardless of
+# how many DeepTeam tasks run concurrently (max_concurrent). Without this,
+# concurrent callers each independently hit 429, each independently retry,
+# and pile back onto the same still-recovering budget - a thundering herd
+# that can exceed any single call's retry budget even though each call in
+# isolation succeeds fine (confirmed: a_simulate_attacks() alone works).
+# One process-wide semaphore serializes actual Groq requests, decoupling
+# DeepTeam's task parallelism from real API concurrency.
+_REQUEST_LOCK = asyncio.Semaphore(1)
+
 
 def _to_strict_schema(model: type[BaseModel]) -> dict:
     """Pydantic's default model_json_schema() doesn't satisfy Groq's strict
@@ -128,10 +138,11 @@ class GroqModel(DeepEvalBaseLLM):
     async def a_generate(self, prompt: str, schema: type[BaseModel] | None = None):
         for attempt in range(MAX_RETRIES + 1):
             try:
-                response = await self._aclient.chat.completions.create(
-                    messages=[{"role": "user", "content": prompt}],
-                    **self._kwargs(schema),
-                )
+                async with _REQUEST_LOCK:
+                    response = await self._aclient.chat.completions.create(
+                        messages=[{"role": "user", "content": prompt}],
+                        **self._kwargs(schema),
+                    )
                 break
             except RateLimitError as exc:
                 if attempt == MAX_RETRIES:
