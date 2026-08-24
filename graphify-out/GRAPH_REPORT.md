@@ -1,16 +1,16 @@
 # Graph Report - argus  (2026-08-24)
 
 ## Corpus Check
-- 39 files · ~29,745 words
+- 39 files · ~29,958 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 213 nodes · 270 edges · 23 communities (19 shown, 4 thin omitted)
+- 214 nodes · 271 edges · 23 communities (19 shown, 4 thin omitted)
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 10 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `087512a8`
+- Built from commit: `88453c02`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -39,14 +39,14 @@
 - model_callback.py
 
 ## God Nodes (most connected - your core abstractions)
-1. `GroqModel` - 12 edges
-2. `What You Must Do When Invoked` - 12 edges
-3. `Argus — Agent QA & Monitoring Suite for Agentic Commerce` - 12 edges
+1. `Argus — Agent QA & Monitoring Suite for Agentic Commerce` - 12 edges
+2. `GroqModel` - 12 edges
+3. `What You Must Do When Invoked` - 12 edges
 4. `/graphify` - 11 edges
-5. `main()` - 10 edges
+5. `ask_with_tools()` - 10 edges
 6. `main()` - 10 edges
-7. `ask_with_tools()` - 10 edges
-8. `DeepTeam / Red-Team Harness (`redteam/`)` - 9 edges
+7. `main()` - 10 edges
+8. `DeepTeam / Red-Team Harness (`redteam/`)` - 10 edges
 9. `compute_asr()` - 8 edges
 10. `graphify reference: extra exports and benchmark` - 8 edges
 
@@ -129,7 +129,7 @@ Nodes (5): Argus — Agent QA & Monitoring Suite for Agentic Commerce, Component
 
 ### Community 20 - "DeepTeam / Red-Team Harness (`redteam/`)"
 Cohesion: 0.11
-Nodes (17): Bugs & Fixes Reference, Concurrent DeepTeam tasks thundering-herd the shared Groq rate limit — fixed, `conda run` crashes re-printing captured output with non-ASCII characters, DeepTeam full-category run: high error rate on Groq free tier — fixed, DeepTeam / Red-Team Harness (`redteam/`), Empty stub field → model fabricated a fake payment link, External API Integration, Format (+9 more)
+Nodes (18): Bugs & Fixes Reference, Concurrent DeepTeam tasks thundering-herd the shared Groq rate limit — fixed, `conda run` crashes re-printing captured output with non-ASCII characters, DeepTeam full-category run: high error rate on Groq free tier — fixed, DeepTeam / Red-Team Harness (`redteam/`), Empty stub field → model fabricated a fake payment link, External API Integration, Format (+10 more)
 
 ### Community 21 - "main"
 Cohesion: 0.18
@@ -140,7 +140,7 @@ Cohesion: 0.21
 Nodes (10): Commerce-specific vulnerabilities not covered by OWASP_ASI_2026's standard…, demo(), make_model_callback(), Bridges DeepTeam's model_callback contract to the reference agent. DeepTeam…, Bind run_id via closure - keeps model_callback's exact (input, turns=None)…, _seed_session(), session_id_for(), Wires DeepTeam's OWASP_ASI_2026 framework against the reference agent. Small-… (+2 more)
 
 ## Knowledge Gaps
-- **89 isolated node(s):** `For /graphify add and --watch`, `For /graphify query`, `For the commit hook and native CLAUDE.md integration`, `For --update and --cluster-only`, `Honesty Rules` (+84 more)
+- **90 isolated node(s):** `Razorpay AI Builder Buildathon — Open Track Submission`, `0. Before You Write Any Code`, `1. Context & Stakes`, `2. The One-Line Idea`, `3. Why Now — Use These Specific Anchors in the Pitch` (+85 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -153,10 +153,10 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.031) - this node is a cross-community bridge._
 - **Why does `main()` connect `main` to `GroqModel`, `model_callback.py`?**
   _High betweenness centrality (0.024) - this node is a cross-community bridge._
-- **Are the 4 inferred relationships involving `main()` (e.g. with `create_run()` and `end_run()`) actually correct?**
-  _`main()` has 4 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `For /graphify add and --watch`, `For /graphify query`, `For the commit hook and native CLAUDE.md integration` to the rest of the system?**
-  _89 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Are the 2 inferred relationships involving `ask_with_tools()` (e.g. with `create_payment_link_declaration()` and `execute_tool_call()`) actually correct?**
+  _`ask_with_tools()` has 2 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `Razorpay AI Builder Buildathon — Open Track Submission`, `0. Before You Write Any Code`, `1. Context & Stakes` to the rest of the system?**
+  _90 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `What You Must Do When Invoked` be split into smaller, more focused modules?**
   _Cohesion score 0.13333333333333333 - nodes in this community are weakly interconnected._
 - **Should `Argus — Agent QA & Monitoring Suite for Agentic Commerce` be split into smaller, more focused modules?**
