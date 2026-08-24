@@ -1,84 +1,111 @@
-"""
-Supabase Telemetry Client — Ships events to the cloud database.
+"""Supabase logging for the red-team harness - build step 14.
 
-Logs every request (blocked or allowed) as a row in Supabase
-for the Streamlit dashboard to query and visualize.
-
-Table schema (create via scripts/setup_supabase.sql):
-  - id (uuid, auto)
-  - timestamp (timestamptz)
-  - prompt_hash (text) — SHA256 of the prompt (privacy-safe)
-  - blocked (boolean)
-  - blocked_reason (text)
-  - guardrail_checks (jsonb) — array of check results
-  - latency_ms (float)
-  - model (text) — target LLM model name
+Uses the service_role key (backend-only, never in the dashboard's code
+path - see DataModel.md's Security convention). Schema is
+scripts/setup_supabase.sql; run that in the Supabase SQL editor before
+anything here will succeed.
 """
 
-from datetime import datetime, timezone
-import hashlib
-import json
+import os
+import uuid
+from datetime import datetime, timedelta, timezone
 
-import structlog
+from dotenv import load_dotenv
+from supabase import Client, create_client
 
-logger = structlog.get_logger()
+from redteam.scoring import asi_code_for, outcome
+
+load_dotenv()
 
 
-class TelemetryClient:
-    """Async telemetry client for Supabase."""
+def get_client() -> Client:
+    return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
 
-    def __init__(self, url: str, key: str, table: str = "aegis_events"):
-        self.url = url
-        self.key = key
-        self.table = table
-        self._client = None
 
-    async def connect(self):
-        """Initialize Supabase client. Falls back to local logging if unconfigured."""
-        placeholder = not self.url or not self.key or "your-project" in self.url or self.key == "your_anon_key_here"
-        if placeholder:
-            logger.info("telemetry_client_dev_mode", table=self.table, reason="SUPABASE_URL/KEY not configured")
-            return
+def create_run(client: Client, run_type: str, label: str, notes: str | None = None) -> str:
+    row = {"run_type": run_type, "label": label, "notes": notes}
+    result = client.table("runs").insert(row).execute()
+    return result.data[0]["run_id"]
 
-        try:
-            from supabase import create_client
-            self._client = create_client(self.url, self.key)
-            logger.info("telemetry_client_connected", table=self.table)
-        except Exception as exc:
-            logger.warning("telemetry_connect_failed", error=str(exc), action="using_local_logging")
 
-    async def log_event(
-        self,
-        prompt: str,
-        blocked: bool,
-        blocked_reason: str,
-        checks: list[dict],
-        latency_ms: float,
-        model: str,
-    ):
-        """
-        Log a proxy event to Supabase.
+def end_run(client: Client, run_id: str) -> None:
+    client.table("runs").update({"ended_at": datetime.now(timezone.utc).isoformat()}).eq("run_id", run_id).execute()
 
-        Args:
-            prompt: Raw prompt text (hashed for privacy).
-            blocked: Whether the request was blocked.
-            blocked_reason: Human-readable block reason.
-            checks: List of guardrail check results.
-            latency_ms: Total processing latency.
-            model: Target LLM model name.
-        """
-        event = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest()[:16],
-            "blocked": blocked,
-            "blocked_reason": blocked_reason,
-            "guardrail_checks": json.dumps(checks),
-            "latency_ms": latency_ms,
-            "model": model,
-        }
 
-        if self._client:
-            self._client.table(self.table).insert(event).execute()
-        else:
-            # Dev mode — just log locally
-            logger.info("telemetry_event", **event)
+def log_attack_event(client: Client, tc, run_id: str, session_id: str, mandate_id: str | None = None) -> None:
+    vtype = tc.vulnerability_type.value if hasattr(tc.vulnerability_type, "value") else str(tc.vulnerability_type)
+    row = {
+        "run_id": run_id,
+        "asi_category": asi_code_for(tc),
+        "vulnerability": tc.vulnerability,
+        "vulnerability_type": vtype,
+        "attack_method": tc.attack_method,
+        "prompt": tc.input,
+        "response": tc.actual_output,
+        "reason": tc.reason,
+        "outcome": outcome(tc),
+        "session_id": session_id,
+        "mandate_id": mandate_id,
+    }
+    client.table("attack_events").insert(row).execute()
+
+
+def log_mandate(client: Client, mandate) -> None:
+    """mandate is an agent.mandate.Mandate instance."""
+    row = {
+        "mandate_id": mandate.mandate_id,
+        "run_id": mandate.run_id,
+        "session_id": mandate.session_id,
+        "scope": mandate.scope,
+        "amount": mandate.amount,
+        "product_id": mandate.product_id,
+        "authorized_at": mandate.authorized_at.isoformat(),
+        "expires_at": mandate.expires_at.isoformat(),
+        "user_confirmed": mandate.user_confirmed,
+        "status": mandate.status,
+        "bypass_confirmed_at": mandate.bypass_confirmed_at.isoformat() if mandate.bypass_confirmed_at else None,
+        "is_live_demo": mandate.is_live_demo,
+        "real_call_fired": mandate.real_call_fired,
+    }
+    client.table("mandates").insert(row).execute()
+
+
+def demo():
+    if not (os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")):
+        print("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set - skipping live call.")
+        return
+
+    client = get_client()
+    try:
+        run_id = create_run(client, run_type="redteam", label="demo_self_check", notes="telemetry client self-check")
+    except Exception as exc:
+        print(f"Insert failed - have you run scripts/setup_supabase.sql in the Supabase SQL editor yet? Error: {exc}")
+        return
+
+    class FakeType:
+        value = "unauthorized_role_assumption"
+
+    class FakeTC:
+        vulnerability = "RBAC"
+        vulnerability_type = FakeType()
+        attack_method = "Prompt Probing"
+        input = "self-check attack prompt"
+        actual_output = "self-check agent response"
+        reason = "self-check judge reason"
+        score = 1
+        error = None
+        risk_category = "ASI_03"
+
+    session_id = str(uuid.uuid4())
+    log_attack_event(client, FakeTC(), run_id, session_id)
+
+    read_back = client.table("attack_events").select("*").eq("session_id", session_id).execute()
+    assert len(read_back.data) == 1, "expected exactly one row written and read back"
+    assert read_back.data[0]["vulnerability"] == "RBAC"
+
+    end_run(client, run_id)
+    print(f"Wrote and read back 1 attack_events row under run_id={run_id}. Schema and RLS working.")
+
+
+if __name__ == "__main__":
+    demo()
