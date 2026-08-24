@@ -2,6 +2,12 @@
 
 Shared schema referenced by the reference agent, red-team harness, drift sentinel, and dashboard. Ground truth (Product, Policy) lives in flat JSON files; everything else is logged to Supabase.
 
+## Cross-cutting conventions
+
+- **IDs**: every `*_id` field is a client-generated UUIDv4, not an auto-increment integer. Needed because Mandate ↔ Attack Event ↔ Session cross-reference each other by ID, and a crashed/replayed run must be able to generate new rows without collision.
+- **Timestamps**: stored UTC everywhere (`timestamptz`), converted to local only at display time. The build spans multiple days plus a round-the-clock keep-alive script — mixed timezones would scramble the "drift over time" chart's ordering.
+- **Fixed-vocabulary strings** (`asi_category`, `check_type`, and any other category-like field): validated against a fixed set at write time, not free strings. Written by multiple code paths (custom vulnerabilities, DeepTeam's own categories, the drift sampler) — an uncaught typo (`"ASI3"` vs `"ASI03"`) silently splits one dashboard category into two with no error thrown.
+
 ## Currency convention
 
 **Rupees everywhere except the Razorpay API boundary.** `Product.price` and `Mandate.amount` inconsistency risk (Razorpay requires the smallest currency unit — paise — on every Payment Link/Order call) is handled like this:
@@ -56,8 +62,9 @@ Fields matched against DeepTeam's actual test-case objects, not assumed.
 | Field | Type | Notes |
 |---|---|---|
 | `attack_id` | string (UUID) | |
+| `run_id` | string (UUID) | groups rows into one campaign — separates "ASR this run" from "ASR cumulative," and lets a crashed/rerun batch's partial rows be identified and excluded instead of silently padding totals |
 | `timestamp` | timestamptz | |
-| `asi_category` | string | e.g. `"ASI03"` |
+| `asi_category` | string | e.g. `"ASI03"` — validated against a fixed set at write time, see Cross-cutting conventions |
 | `vulnerability` | string | e.g. `"unauthorized_refund"` — the vulnerability under test |
 | `attack_method` | string | the technique used (Roleplay, PromptInjection, etc.) — DeepTeam provides this separately from `vulnerability`; needed for "which technique gets past guardrails most" breakdown |
 | `prompt` | string | |
@@ -72,10 +79,12 @@ Fields matched against DeepTeam's actual test-case objects, not assumed.
 | Field | Type | Notes |
 |---|---|---|
 | `incident_id` | string (UUID) | |
+| `run_id` | string (UUID) | groups rows into one sampler run — needed for a clean before/after comparison across the deliberately-injected drift event (Section 4.4), and to exclude a crashed/rerun batch's partial rows |
 | `timestamp` | timestamptz | |
-| `check_type` | enum | `numeric` \| `faithfulness` \| `self_consistency` |
+| `check_type` | enum | `numeric` \| `faithfulness` \| `self_consistency` — validated at write time |
 | `question` | string | |
 | `ground_truth_ref` | string | `Product.id` or `Policy.id` — for traceability only |
+| `ground_truth_type` | enum | `product` \| `policy` — disambiguates which table `ground_truth_ref` points into (polymorphic FK, no real constraint possible without this) |
 | `expected` | value, nullable | **snapshot of the ground-truth value at check-time, not a live lookup via `ground_truth_ref`.** A later catalog/policy edit must not retroactively change past rows — this is what keeps the deliberately-injected drift demo timeline honest. `null` for `self_consistency` rows (no external ground truth applies). |
 | `actual` | value | the agent's answer. For `self_consistency` rows: the majority answer across samples. |
 | `sampled_responses` | array, optional | populated only for `self_consistency` rows — the N sampled answers the majority/score were computed from |
@@ -91,6 +100,7 @@ Persisted in full — this is synthetic test traffic against Argus's own referen
 | Field | Type | Notes |
 |---|---|---|
 | `session_id` | string | |
+| `session_type` | enum | `smoke_test` \| `drift_sampler` \| `attack` — distinguishes which producer created the session; without it, benign traffic can't be filtered from attack noise, and the graceful-failure demo session can't be pulled cleanly for the video |
 | `turn_index` | integer | |
 | `role` | enum | `user` \| `agent` |
 | `content` | string | |
