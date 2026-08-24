@@ -1,16 +1,16 @@
 # Graph Report - argus  (2026-08-24)
 
 ## Corpus Check
-- 36 files · ~26,418 words
+- 38 files · ~27,950 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 182 nodes · 205 edges · 22 communities (18 shown, 4 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.8)
+- 187 nodes · 214 edges · 22 communities (18 shown, 4 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 4 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `081b08a2`
+- Built from commit: `62f7fd4a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -38,13 +38,13 @@
 - model_callback
 
 ## God Nodes (most connected - your core abstractions)
-1. `What You Must Do When Invoked` - 12 edges
-2. `Argus — Agent QA & Monitoring Suite for Agentic Commerce` - 12 edges
-3. `GroqModel` - 11 edges
+1. `GroqModel` - 12 edges
+2. `What You Must Do When Invoked` - 12 edges
+3. `Argus — Agent QA & Monitoring Suite for Agentic Commerce` - 12 edges
 4. `ask_with_tools()` - 11 edges
 5. `/graphify` - 11 edges
-6. `graphify reference: extra exports and benchmark` - 8 edges
-7. `model_callback()` - 7 edges
+6. `model_callback()` - 8 edges
+7. `graphify reference: extra exports and benchmark` - 8 edges
 8. `DeepTeam / Red-Team Harness (`redteam/`)` - 7 edges
 9. `ask()` - 6 edges
 10. `Debug Journal` - 6 edges
@@ -57,9 +57,9 @@
 - `ask_with_tools()` --calls--> `execute_tool_call()`  [INFERRED]
   agent/reference_agent.py → agent/tools.py
 - `main()` --calls--> `GroqModel`  [EXTRACTED]
-  redteam/run_asi.py → redteam/groq_model.py
+  redteam/run_custom.py → redteam/groq_model.py
 - `main()` --indirect_call--> `model_callback()`  [INFERRED]
-  redteam/run_asi.py → redteam/model_callback.py
+  redteam/run_custom.py → redteam/model_callback.py
 
 ## Import Cycles
 - None detected.
@@ -128,11 +128,11 @@ Nodes (5): Argus — Agent QA & Monitoring Suite for Agentic Commerce, Component
 
 ### Community 20 - "DeepTeam / Red-Team Harness (`redteam/`)"
 Cohesion: 0.12
-Nodes (15): Bugs & Fixes Reference, `conda run` crashes re-printing captured output with non-ASCII characters, DeepTeam full-category run: high error rate on Groq free tier — open problem, DeepTeam / Red-Team Harness (`redteam/`), Empty stub field → model fabricated a fake payment link, External API Integration, Format, Gemini 2.5 Flash-Lite retired for new API keys (+7 more)
+Nodes (15): Bugs & Fixes Reference, `conda run` crashes re-printing captured output with non-ASCII characters, DeepTeam full-category run: high error rate on Groq free tier — fixed, DeepTeam / Red-Team Harness (`redteam/`), Empty stub field → model fabricated a fake payment link, External API Integration, Format, Gemini 2.5 Flash-Lite retired for new API keys (+7 more)
 
 ### Community 21 - "model_callback"
-Cohesion: 0.36
-Nodes (7): demo(), model_callback(), Bridges DeepTeam's model_callback contract to the reference agent. DeepTeam…, _seed_session(), main(), Wires DeepTeam's OWASP_ASI_2026 framework against the reference agent. Small-…, RTTurn
+Cohesion: 0.21
+Nodes (10): Commerce-specific vulnerabilities not covered by OWASP_ASI_2026's standard…, demo(), model_callback(), Bridges DeepTeam's model_callback contract to the reference agent. DeepTeam…, _seed_session(), main(), Wires DeepTeam's OWASP_ASI_2026 framework against the reference agent. Small-…, main() (+2 more)
 
 ## Knowledge Gaps
 - **86 isolated node(s):** `For /graphify add and --watch`, `For /graphify query`, `For the commit hook and native CLAUDE.md integration`, `For --update and --cluster-only`, `Honesty Rules` (+81 more)
@@ -143,11 +143,11 @@ Nodes (7): demo(), model_callback(), Bridges DeepTeam's model_callback contract 
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `ask_with_tools()` connect `ask_with_tools` to `mandate.py`, `model_callback`?**
-  _High betweenness centrality (0.053) - this node is a cross-community bridge._
+  _High betweenness centrality (0.055) - this node is a cross-community bridge._
 - **Why does `model_callback()` connect `model_callback` to `ask_with_tools`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+  _High betweenness centrality (0.046) - this node is a cross-community bridge._
 - **Why does `GroqModel` connect `GroqModel` to `model_callback`?**
-  _High betweenness centrality (0.028) - this node is a cross-community bridge._
+  _High betweenness centrality (0.029) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `ask_with_tools()` (e.g. with `create_payment_link_declaration()` and `execute_tool_call()`) actually correct?**
   _`ask_with_tools()` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `For /graphify add and --watch`, `For /graphify query`, `For the commit hook and native CLAUDE.md integration` to the rest of the system?**
