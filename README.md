@@ -17,7 +17,20 @@ Repo scaffolding in progress.
 
 ## Setup
 
-Coming soon.
+```bash
+conda create -n argus python=3.11 -y
+conda run -n argus pip install -r requirements.txt
+
+cp .env.example .env
+# fill in .env: Groq, Gemini, Razorpay test-mode, Supabase keys
+```
+
+Run any script with `conda run --no-capture-output -n argus python -m <module>` (the `--no-capture-output` flag matters on Windows — plain `conda run` buffers stdout and can crash re-printing it through the wrong codepage on non-ASCII output).
+
+```bash
+conda run --no-capture-output -n argus python -m agent.smoke_test   # reference agent smoke test
+conda run --no-capture-output -n argus python -m redteam.run_asi    # small-scale red-team wiring test
+```
 
 ## License
 
