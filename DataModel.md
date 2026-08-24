@@ -9,6 +9,7 @@ Shared schema referenced by the reference agent, red-team harness, drift sentine
 - **Fixed-vocabulary strings** (`asi_category`, `check_type`, and any other category-like field): validated against a fixed set at write time, not free strings. Written by multiple code paths (custom vulnerabilities, DeepTeam's own categories, the drift sampler) — an uncaught typo (`"ASI3"` vs `"ASI03"`) silently splits one dashboard category into two with no error thrown.
 - **Ground-truth ID stability**: no database-level foreign key is possible into a JSON file, so nothing stops `catalog.json`/`policies.json` IDs from being renamed or deleted mid-build — which would orphan historical Mandate/Attack Event/Drift Incident rows. Rule: only add or edit values during the build, **never delete or rename an existing ID**. A "removed product" attack scenario uses a clearly separate fake ID, not a deleted real one.
 - **Security (public repo)**: the repo is public and Supabase's anon key ships client-side by design — without Row Level Security this is a full read/write hole (see [CVE-2025-48757](https://nvd.nist.gov/vuln/detail/CVE-2025-48757), 303 exposed endpoints across 170 apps from exactly this misconfiguration). Before the repo goes public: never commit keys (`.env` stays gitignored; Streamlit Cloud's secrets manager holds the deployed app's copy); enable RLS on every table, no exceptions; give the public dashboard a `SELECT`-only policy; keep `INSERT`/`UPDATE` behind the service-role key, used only by harness/sentinel backend scripts, never in the Streamlit app's code path.
+- **No unsafe HTML rendering**: this is a code-level rule, not a per-field data-model one, because every attacker-influenced free-text field is a candidate — `Product.description`, `Attack Event.prompt`/`response`, `Session Turn.content`. A prompt-injection payload is often literally designed to look like markup or instructions. Never set `unsafe_allow_html=True` anywhere in the dashboard when rendering any of these.
 
 ## Currency convention
 
@@ -17,6 +18,18 @@ Shared schema referenced by the reference agent, red-team harness, drift sentine
 - `Product.price` — rupees (decimal). Matches what the agent says in conversation and what the drift sentinel's exact-match check compares against.
 - `Mandate.amount` — paise (integer). This is the number that actually reaches Razorpay, so it's stored in Razorpay's native unit to avoid converting twice in two places.
 - Conversion (rupees → paise, ×100) happens exactly once, at the point a Mandate is built from a Product lookup. No other file performs this conversion.
+
+## Entity 0: Run (Supabase)
+
+Metadata for what `run_id` (on Attack Event and Drift Incident) actually refers to. Without this, "before" vs "after" the staged drift injection (Section 4.4) has to be reconstructed from raw timestamps instead of a one-line query.
+
+| Field | Type | Notes |
+|---|---|---|
+| `run_id` | string (UUID) | |
+| `started_at` | timestamptz | |
+| `ended_at` | timestamptz, nullable | null while the run is in progress |
+| `label` | string | e.g. `"phase_a_baseline"`, `"drift_after_price_change"` |
+| `notes` | string, optional | free text — e.g. which ground-truth state was active; cross-reference with `DEBUG_JOURNAL.md` |
 
 ## Entity 1: Product (`catalog.json`)
 
@@ -27,7 +40,7 @@ Flat catalog, 5–10 products, no variants — keeps the drift sentinel's numeri
 | `id` | string | e.g. `"prod_001"` |
 | `name` | string | |
 | `price` | number | rupees — see currency convention above |
-| `description` | string | plain text only, no markdown/HTML — this is the prompt-injection attack surface (Section 4.3) |
+| `description` | string | plain text only, no markdown/HTML — this is the prompt-injection attack surface (Section 4.3); see the no-unsafe-HTML rendering rule under Cross-cutting conventions |
 | `category` | string | optional |
 | `stock` | integer | optional — only if an out-of-stock scenario is in scope |
 
@@ -52,11 +65,11 @@ Logged for **every** mandate creation attempt, regardless of whether a real Razo
 | `session_id` | string | |
 | `scope` | enum | `purchase` \| `refund` \| `discount_application` |
 | `amount` | integer | paise — see currency convention above |
-| `product_id` | string | references `Product.id` |
+| `product_id` | string | references `Product.id`. Single product only — fine for v1; becomes a line-items array if the cart stretch goal (Section 4.1) is reached. Not needed now, noted so it isn't a surprise mid-stretch-build. |
 | `authorized_at` | timestamptz | |
 | `expires_at` | timestamptz | mandate validity window — without this there's no way to test or demo a **replay attack** (reusing an old, legitimately-issued mandate to authorize a new action), a well-known attack class adjacent to ASI03. `"mandate_replay"` should be an explicit `vulnerability` value in Attack Event once the harness covers it. |
 | `user_confirmed` | boolean | did a real user-confirmation turn precede this |
-| `status` | enum | `authorized` \| `denied` \| `bypassed` — the actual outcome, needed to score ASI03 (Identity & Privilege Abuse) |
+| `status` | enum | `authorized` \| `denied` \| `bypassed` — needed to score ASI03. **Derived, not independently maintained**: set by whatever writes the linked Attack Event row (via `mandate_id`), not written separately by the mandate layer itself. Two independently-written fields describing the same real-world outcome is how they end up disagreeing. |
 | `is_live_demo` | boolean | intent flag — whether this mandate is allowed to trigger a real Razorpay call |
 | `real_call_fired` | boolean | actual outcome — whether a real Razorpay call happened (may diverge from `is_live_demo` on error/stub) |
 
@@ -70,12 +83,13 @@ Fields matched against DeepTeam's actual test-case objects, not assumed.
 | `run_id` | string (UUID) | groups rows into one campaign — separates "ASR this run" from "ASR cumulative," and lets a crashed/rerun batch's partial rows be identified and excluded instead of silently padding totals |
 | `timestamp` | timestamptz | |
 | `asi_category` | string | e.g. `"ASI03"` — validated against a fixed set at write time, see Cross-cutting conventions |
-| `vulnerability` | string | e.g. `"unauthorized_refund"` — the vulnerability under test |
-| `attack_method` | string | the technique used (Roleplay, PromptInjection, etc.) — DeepTeam provides this separately from `vulnerability`; needed for "which technique gets past guardrails most" breakdown |
+| `vulnerability` | string | e.g. `"CommerceManipulation"` — the parent vulnerability, matching DeepTeam's custom-vulnerability API where one vulnerability declares multiple types |
+| `vulnerability_type` | string | e.g. `"unauthorized_refund"` — the sub-category under `vulnerability`. Kept separate rather than folded into one field, since a single custom vulnerability can declare several types and collapsing them loses that grouping. |
+| `attack_method` | string | the technique used (Roleplay, PromptInjection, etc.) — DeepTeam provides this separately from `vulnerability`/`vulnerability_type`; needed for "which technique gets past guardrails most" breakdown |
 | `prompt` | string | for multi-turn attacks (DeepTeam's progression/multi-turn strategies), holds the final triggering turn only — full build-up across turns lives in Session/Conversation Turn under the same `session_id` |
 | `response` | string | same multi-turn convention as `prompt` — final turn only |
 | `reason` | string | DeepTeam's judge justification for the score — required for the full audit trail (Section 4.5) |
-| `bypassed` | boolean | **DeepTeam convention is `score: 1 = defended, 0 = vulnerable` — inverted from this field. Flip on ingest, never pass through raw.** |
+| `outcome` | enum | `bypassed` \| `defended` \| `errored` — not a boolean. DeepTeam's own results track passing/failing/errored as three distinct counts; a free-tier API run will genuinely error sometimes (rate limit, timeout, malformed response), and a boolean forces either silently dropping those rows or miscoding them as a real pass/fail, corrupting ASR. **DeepTeam convention is `score: 1 = defended, 0 = vulnerable` — map to `outcome` on ingest (never pass the raw score through as-is), with a caught API failure mapped to `errored` before it ever reaches DeepTeam's scoring.** |
 | `session_id` | string | |
 | `mandate_id` | string, optional | FK — pins down which mandate a bypass attempt targeted, since a session can contain multiple mandates |
 
@@ -94,7 +108,8 @@ Fields matched against DeepTeam's actual test-case objects, not assumed.
 | `actual` | value | the agent's answer. For `self_consistency` rows: the majority answer across samples. |
 | `sampled_responses` | array, optional | populated only for `self_consistency` rows — the N sampled answers the majority/score were computed from |
 | `score` | float (numeric), nullable | must be a real float column, not int/boolean — holds both DeepTeam's binary 0/1 and RAGAS/self-consistency's continuous 0–1 scores. null for `numeric` (exact match is binary). For `self_consistency`: agreement rate across samples. |
-| `flagged` | boolean | |
+| `check_status` | enum | `completed` \| `errored` — parallel to Attack Event's `outcome`, same reasoning: a free-tier API failure mid-check (RAGAS/self-consistency call errors) needs a distinct state, not a miscoded `flagged` value. |
+| `flagged` | boolean | only meaningful when `check_status = completed` |
 | `reviewed_at` | timestamptz, nullable | when a human reviewed this row for the false-positive cost metric — null means not yet reviewed |
 | `is_false_positive` | boolean, nullable | the review's verdict, separate from whether it was reviewed at all. null = not yet reviewed, true/false = the actual finding. (Splits what was one conflated `false_positive_reviewed` boolean.) |
 | `session_id` | string | which conversation produced this incident — required for the audit trail |
@@ -110,7 +125,7 @@ Persisted in full — this is synthetic test traffic against Argus's own referen
 | Field | Type | Notes |
 |---|---|---|
 | `session_id` | string | |
-| `session_type` | enum | `smoke_test` \| `drift_sampler` \| `attack` — distinguishes which producer created the session; without it, benign traffic can't be filtered from attack noise, and the graceful-failure demo session can't be pulled cleanly for the video |
+| `session_type` | enum | `smoke_test` \| `drift_sampler` \| `attack` \| `demo` — distinguishes which producer created the session. `demo` marks a deliberately staged session (graceful-failure refusal, drift-injection clip) so it can be pulled by a plain filter for the video instead of remembering which run happened to be the staged one. |
 | `turn_index` | integer | unique together with `session_id` |
 | `role` | enum | `user` \| `agent` |
 | `content` | string | |
