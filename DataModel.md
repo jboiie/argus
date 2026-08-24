@@ -131,6 +131,7 @@ Persisted in full — this is synthetic test traffic against Argus's own referen
 | `run_id` | string (UUID) | same reasoning as the other event tables — same automated runs produce these rows, equally exposed to a mid-run crash |
 | `session_type` | enum | `smoke_test` \| `drift_sampler` \| `attack` \| `demo` — distinguishes which producer created the session. `demo` marks a deliberately staged session (graceful-failure refusal, drift-injection clip) so it can be pulled by a plain filter for the video instead of remembering which run happened to be the staged one. |
 | `turn_index` | integer | unique together with `session_id` |
-| `role` | enum | `user` \| `agent` |
-| `content` | string | |
+| `role` | enum | `user` \| `agent` \| `tool_call` \| `tool_result` — MCP tool invocations (Razorpay payment-link/order calls, etc.) get their own rows, not flattened into an `agent` turn's natural-language text. This is the row Section 4.2's "every money action explainable, bounded and gated" actually depends on: without it, "full transcript" and "auditable money-action trail" are two different claims wearing one name. |
+| `content` | string | for `tool_call`: the tool name + arguments (JSON). for `tool_result`: the raw MCP response. for `user`/`agent`: natural-language text. |
+| `mandate_id` | string, optional | set on `tool_call` rows that correspond to a money-moving action — ties the tool invocation back to the Mandate that authorized it |
 | `timestamp` | timestamptz | |
