@@ -46,7 +46,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 - **Scope for v1**: minimal chat-based checkout agent with a *few turns* of conversation memory (not stateless, not full session/cart state).
 - Small fixed catalog (5–10 products) in a JSON file or lightweight DB — this is your ground truth.
 - Built as an **MCP client against Razorpay's official remote MCP server** (35+ tools covering payments, orders, payment links) using the official `mcp` Python SDK — `async with Client("<razorpay-mcp-url>") as client: await client.call_tool(...)`. This mirrors Razorpay's own architecture and gives the red-team harness a real tool-calling surface to attack (not just chat text).
-- **Reference agent's own LLM — v1**: Gemini 2.5 Flash-Lite ($0.10/$0.40 per million tokens, plus its own free tier). Reference agent is the actual target every attack and drift-sample call hits, so real volume adds up fast — Flash-Lite keeps that at effectively zero cost through build and testing.
+- **Reference agent's own LLM — v1**: Gemini 3.5 Flash-Lite ($0.30/$2.50 per million tokens, plus its own free tier — confirmed live via API as of Aug 2026; `gemini-2.5-flash-lite` returns 404, retired for new users ahead of its Oct 2026 full retirement). Reference agent is the actual target every attack and drift-sample call hits, so real volume adds up fast — Flash-Lite's free tier keeps that at effectively zero cost through build and testing, and even paid-tier is ~3x cheaper than Haiku on input, ~2x on output.
 - **Possible upgrade — post-project**: Claude Haiku 4.5 ($1/$5 per million tokens), to mirror Razorpay's real stack choice (built on Anthropic's Claude Agent SDK, Section 3) for the narrative. Deliberately deferred: set up billing and decide spend only after free-tier build/testing is done, not upfront against an unknown token volume.
 - **Stretch goal (only if core engines are done and tested)**: cart + coupon codes + multi-step checkout. Don't start this early — a narrower, complete project outperforms an ambitious, incomplete one for this specific judging format.
 
@@ -103,7 +103,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 5. Environment setup — Groq/Gemini/Claude API keys, Razorpay test-mode keys, Supabase project, `.env` template.
 
 **Reference Agent**
-6. Basic single-turn Q&A agent answering from ground truth via Gemini 2.5 Flash-Lite, no attack resistance yet.
+6. Basic single-turn Q&A agent answering from ground truth via Gemini 3.5 Flash-Lite, no attack resistance yet.
 7. Wire up as an MCP client against Razorpay's remote MCP server.
 8. Add light multi-turn memory.
 9. Add the authorization/mandate layer before any payment-link action.
