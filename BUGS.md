@@ -118,6 +118,13 @@ Each entry: **Symptom** (what you'd observe) → **Root Cause** (why) → **Fix*
 - **Result:** Rerun of the same custom-vulnerability test: 5/7 succeeded (up from 1/7), remaining 2 errors traced to a different, unrelated cause (see below — daily token cap, not concurrency).
 - **Mitigation:** When wrapping any rate-limited API as a custom model for a framework with its own internal concurrency setting, don't assume that setting bounds real request concurrency — verify, and serialize at the actual API-call layer if the two are decoupled.
 
+### `RTTurn.metadata` doesn't propagate to `RTTestCase` — session correlation needed a different design
+
+- **Symptom:** Planning Supabase logging (step 14) needed each Attack Event row to carry the `session_id` used during that attack's `model_callback` invocation. Attaching `session_id` to `RTTurn.metadata` and reading it back off the resulting test case seemed like the obvious approach.
+- **Root Cause:** Checked against DeepTeam's actual source (`red_teamer.py::_a_attack`) rather than assumed — only `model_response.content`, `.retrieval_context`, and `.tools_called` get copied from the returned `RTTurn` onto the `RTTestCase`. `metadata` is silently dropped.
+- **Fix:** Derived `session_id` deterministically from the attack's prompt text (`uuid.uuid5` keyed on `tc.input`) instead of trying to carry a randomly-generated ID through DeepTeam's pipeline. `model_callback.py::session_id_for()` is the single source of truth, called both when creating the session and later when logging — no shared mutable state, no correlation table needed.
+- **Mitigation:** Before designing a data flow that depends on a framework passing your custom fields through its own object pipeline, check the actual assignment code, not just the field's presence in the dataclass — a field existing on a type doesn't mean every code path populates or forwards it.
+
 ### Groq free-tier daily token cap (TPD), separate from the per-minute cap — open, real constraint for step 15
 
 - **Symptom:** After a day of build/debug testing, `Refund Abuse` custom vulnerability errored in the full pipeline run but succeeded when called in isolation moments later.
