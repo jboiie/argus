@@ -89,9 +89,23 @@ Each entry: **Symptom** (what you'd observe) → **Root Cause** (why) → **Fix*
 - **Fix:** Always use `conda run --no-capture-output -n argus ...` for anything that might print non-ASCII — streams directly instead of buffering + re-encoding. (Matches the pattern already used in the sibling Aegis project's own README for exactly this reason.)
 - **Mitigation:** Documented in `README.md`'s Setup section as the required invocation pattern for this repo, so it's not rediscovered per-session.
 
-### DeepTeam full-category run: high error rate on Groq free tier — open problem
+### DeepTeam full-category run: high error rate on Groq free tier — fixed
 
 - **Symptom:** Small-scale `OWASP_ASI_2026` / ASI_03 wiring test: 9 of 10 test cases came back `errored`. `BOLA` and `Agent Identity & Trust Abuse` categories failed at attack-generation entirely (empty input/output); one `RBAC` case failed at judge-scoring (real response, judge's JSON didn't parse).
-- **Root Cause:** Not fully diagnosed — likely a mix of `gpt-oss-20b`'s selective refusals (confirmed for `SECRETS_AND_CREDENTIALS` framing, not yet checked category-by-category for BOLA/Identity-abuse) and residual TPM/reliability issues under concurrent load (`max_concurrent=3`).
-- **Fix:** **Not yet fixed.** Carried forward as an open problem into steps 12/15 (custom vulnerabilities, full-volume run).
-- **Mitigation (planned):** `ignore_errors=True` (the real default) already prevents one errored category from crashing the whole run — matches DataModel.md's `errored` outcome design. Full-volume run needs either: per-category compliance testing before committing to a judge model, a higher `attacks_per_vulnerability_type` to average out noise, or explicit retry/backoff tuned to Groq's actual TPM reset cadence (DeepTeam's built-in 1s/2s backoff is too short for a real ~20s TPM cooldown).
+- **Root Cause:** Two separate causes, found via research (Groq rate-limit docs, DeepTeam/deepeval GitHub issues, Groq structured-outputs docs) after the narrow model-swap fix wasn't enough on its own:
+  1. **Invalid JSON from the judge/simulator model.** DeepTeam's own call sites do `await self.simulator_model.a_generate(prompt, schema=SomeSchema)` directly — if the custom model doesn't genuinely support `schema`, it falls back to plain text + `trimAndLoadJson`, which is fragile (any preamble, refusal, or formatting quirk breaks it). Confirmed via deepeval GitHub issues #929/#982 as a known failure mode with custom models.
+  2. **Groq free-tier TPM (8000/min)** gets hit even at `max_concurrent=1` once a few calls land in the same window, and DeepTeam's own built-in retry backoff (1s, 2s) is far shorter than Groq's real cooldown (observed up to ~25s).
+- **Fix:**
+  1. Implemented genuine schema support in `GroqModel.generate`/`a_generate` (real `schema` parameter, not swallowed via `**kwargs`) using Groq's **strict `json_schema` structured-output mode** — confirmed via Groq docs that only `gpt-oss-20b`/`gpt-oss-120b` support `strict: true`, which guarantees schema-valid JSON via constrained decoding (never errors). Pydantic's default `model_json_schema()` doesn't satisfy Groq's strict requirements (every property must be in `required`, every object needs `additionalProperties: false`) — added `_to_strict_schema()` to normalize recursively. DeepTeam now gets a validated pydantic object back directly, skipping the fragile fallback entirely.
+  2. Added real retry-with-backoff in `GroqModel` itself: catches `RateLimitError`, reads Groq's actual suggested wait time (response header or parsed from the error message), sleeps that long (+1s buffer), retries up to twice.
+- **Result (confirmed at full 10-test-case scale, same ASI_03 category, before/after):**
+
+  | | Before | After |
+  |---|---|---|
+  | Errored | 9/10 | 1/10 |
+  | Bypassed (real finding) | 0/10 | 1/10 |
+  | Defended | 1/10 | 8/10 |
+
+  The one remaining error: a single `RBAC/ROLE_BYPASS` case where the model's refusal still didn't fit the schema even after retries (Groq returns `400 json_validate_failed` with the refusal text in `failed_generation` when constrained decoding can't reconcile a refusal with the required schema shape — a real, narrow residual failure mode, not corrupted data). The one bypass is a genuine finding, not noise: under `Prompt Leakage/PERMISSIONS_AND_ROLES`, the agent's refusal ("I am a customer support agent... I don't have information about system upgrades") got scored as a permissions/role exposure — arguably borderline, worth flagging as a candidate for the false-positive-cost metric (Section 4.4) once that's built.
+- **New cost discovered:** the fix trades throughput for reliability — this 10-test-case run took ~10 minutes (retry waits under free-tier TPM). Step 15's full-volume run (hundreds of attempts) needs explicit pacing/paid-tier planning as a result, not just reliability.
+- **Mitigation:** `ignore_errors=True` (the real default) still matters as a backstop — an isolated genuine refusal becomes one `errored` test case, not a crashed run, matching DataModel.md's `errored` outcome design. If TPM pressure resurfaces at step 15's real volume, Groq's paid Developer tier (pay-as-you-go, no subscription, ~30-40x the free-tier TPM) is the next lever.
