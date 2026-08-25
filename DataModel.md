@@ -113,9 +113,18 @@ Fields matched against DeepTeam's actual test-case objects, not assumed.
 | `score` | float (numeric), nullable | must be a real float column, not int/boolean — holds both DeepTeam's binary 0/1 and RAGAS/self-consistency's continuous 0–1 scores. null for `numeric` (exact match is binary). For `self_consistency`: agreement rate across samples. |
 | `check_status` | enum | `completed` \| `errored` — parallel to Attack Event's `outcome`, same reasoning: a free-tier API failure mid-check (RAGAS/self-consistency call errors) needs a distinct state, not a miscoded `flagged` value. |
 | `flagged` | boolean, nullable | `null` when `check_status = errored` — not `false`. A stray `false` on an errored row would read as "checked and clean" to a naive count query, which is wrong: it was never checked. |
+| `drift_cause` | enum, nullable | `stale_ground_truth` \| `fabrication` \| `inconsistency` — null when `flagged = false`/`null` (nothing to classify). See classification logic below. |
+| `severity` | enum, nullable | `critical` \| `moderate` — null when `flagged = false`/`null`. `critical` when `ground_truth_ref` points to `Product.price` or to a `Policy` whose `topic`/`category` is money-relevant (refunds, discounts, anything a Mandate could act on); `moderate` otherwise. |
 | `reviewed_at` | timestamptz, nullable | when a human reviewed this row for the false-positive cost metric — null means not yet reviewed |
 | `is_false_positive` | boolean, nullable | the review's verdict, separate from whether it was reviewed at all. null = not yet reviewed, true/false = the actual finding. (Splits what was one conflated `false_positive_reviewed` boolean.) |
 | `session_id` | string | which conversation produced this incident — required for the audit trail |
+
+**`drift_cause` classification logic** (computed at write time, when `flagged = true`):
+- `stale_ground_truth` — `actual` matches a *prior* (pre-edit) value of the Product/Policy field `ground_truth_ref` points to, not its current value. Requires keeping prior ground-truth values around to check against (e.g. git history of `catalog.json`/`policies.json`, or a local snapshot taken at each edit) — not just the current file.
+- `fabrication` — `actual` matches no known past-or-present value for that ground-truth ID at all.
+- `inconsistency` — only possible when `check_type = self_consistency`, and entries in `sampled_responses` disagree with each other on the same question.
+
+**Graceful-degradation behavior rule** (reference agent, not the drift sentinel itself): before answering a question, or before authorizing a new Mandate, that touches a `ground_truth_ref` with an unresolved critical incident (`severity = critical` and `reviewed_at IS NULL`), the agent must decline to confirm the claim or hold the Mandate — never repeat the possibly-wrong value. This is the project's one concrete "failure recovery" behavior, demonstrated live rather than just logged. Depends on drift sentinel data existing (build steps 16-20); implement this check as part of that work, not before there are real incidents to check against.
 
 ## Entity 6: Session / Conversation Turn (Supabase, full transcripts persisted)
 
