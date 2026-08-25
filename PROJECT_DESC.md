@@ -46,8 +46,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 - **Scope for v1**: minimal chat-based checkout agent with a *few turns* of conversation memory (not stateless, not full session/cart state).
 - Small fixed catalog (5–10 products) in a JSON file or lightweight DB — this is your ground truth.
 - Built as an **MCP client against Razorpay's official remote MCP server** (35+ tools covering payments, orders, payment links) using the official `mcp` Python SDK — `async with Client("<razorpay-mcp-url>") as client: await client.call_tool(...)`. This mirrors Razorpay's own architecture and gives the red-team harness a real tool-calling surface to attack (not just chat text).
-- **Reference agent's own LLM — v1**: Gemini 3.5 Flash-Lite ($0.30/$2.50 per million tokens, plus its own free tier — confirmed live via API as of Aug 2026; `gemini-2.5-flash-lite` returns 404, retired for new users ahead of its Oct 2026 full retirement). Reference agent is the actual target every attack and drift-sample call hits, so real volume adds up fast — Flash-Lite's free tier keeps that at effectively zero cost through build and testing, and even paid-tier is ~3x cheaper than Haiku on input, ~2x on output.
-- **Possible upgrade — post-project**: Claude Haiku 4.5 ($1/$5 per million tokens), to mirror Razorpay's real stack choice (built on Anthropic's Claude Agent SDK, Section 3) for the narrative. Deliberately deferred: set up billing and decide spend only after free-tier build/testing is done, not upfront against an unknown token volume.
+- **Reference agent's own LLM**: Gemini 3.5 Flash-Lite ($0.30/$2.50 per million tokens, plus its own free tier — confirmed live via API as of Aug 2026; `gemini-2.5-flash-lite` returns 404, retired for new users ahead of its Oct 2026 full retirement). Groq is also available for reference-agent traffic on the same free-tier basis as Gemini. No Anthropic/Claude dependency — deliberately dropped, see Section 6's quota policy and README's design-decisions section for the reasoning. Reference agent is the actual target every attack and drift-sample call hits, so real volume adds up fast — free tiers keep that at effectively zero cost through build and testing.
 - **Stretch goal (only if core engines are done and tested)**: cart + coupon codes + multi-step checkout. Don't start this early — a narrower, complete project outperforms an ambitious, incomplete one for this specific judging format.
 
 ### 4.2 Authorization / Mandate Layer (new — don't skip this)
@@ -72,6 +71,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 - **Sampler**: simulate repeated sessions asking overlapping questions. Run this across your actual build days (not one batch at the end) so the "drift over time" chart is a real timeline.
 - **Deliberately inject one drift event**: mid-build, change a price or policy in the ground-truth file and show the agent still answering with stale info until resynced. This gives you one clean, honest, demonstrable incident instead of hoping stochastic drift shows up on its own — and it's good material for the video's "what broke" segment.
 - **False-positive cost metric**: pick a simple, explicit cost model (e.g., relative cost of a missed hallucination vs. a false alarm needing review) and state the assumption in the README. Doesn't need sophistication, needs to exist and be honest.
+- **Graceful degradation on unresolved critical incidents**: each Drift Incident carries a `drift_cause` (`stale_ground_truth` | `fabrication` | `inconsistency`) and `severity` (`critical` | `moderate` — critical when the incident's `ground_truth_ref` touches `Product.price` or a money-relevant Policy). Before answering a question or authorizing a new Mandate that touches a `ground_truth_ref` with an unresolved critical incident (`reviewed_at IS NULL`), the reference agent must decline to confirm the claim or hold the Mandate, rather than repeating the possibly-wrong value. This is the project's one concrete "failure recovery" behavior to demonstrate live — see DataModel.md's Drift Incident entity for the classification logic. Depends on the drift sentinel (steps 16-20) actually running; the agent-side check is implemented alongside that work, not before there's real incident data to check against.
 
 ### 4.5 Unified Dashboard
 - Single Streamlit app, deployed live on **Streamlit Cloud** (public link is a submission requirement).
@@ -88,9 +88,10 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 
 ## 6. Budget
 
-- **Groq free tier**: primary workhorse for the high-volume attack loop and drift sampler (fast, generous, zero cost, hosts Llama/Qwen/GPT-OSS).
+- **Groq free tier**: primary workhorse for the high-volume attack loop, drift sampler, and (optionally) the reference agent — fast, generous, zero cost, hosts Llama/Qwen/GPT-OSS.
 - **Gemini free tier**: powers the reference agent (Flash-Lite) and drift-checking diversity — dual-purpose, zero cost through build and testing.
-- **Claude Haiku 4.5**: not used in v1. Possible post-project upgrade for the reference agent once free-tier build/testing is complete — billing and spend decided then, against real observed token volume instead of a guess upfront.
+- **No Anthropic/Claude dependency.** Dropped deliberately, not deferred — see README's design-decisions section for the reasoning (call-volume-heavy, quality-tolerant workload favors Groq/Gemini's economics over Claude's per-call quality premium).
+- **Quota policy (explicit, not to be re-litigated per-incident)**: Groq's free tier stays the default for all engines. Only move traffic to Groq's paid Developer tier if the free-tier daily quota becomes a **repeated, demonstrated blocker** (i.e. it has already blocked a run more than once) — never upgrade preemptively just because usage is climbing toward the cap.
 - **Total budget ceiling: ₹500–1000**, held mostly as insurance against free-tier rate limits during crunch time or the final recording — likely won't be fully spent.
 
 ## 7. Build Steps (ordered, not tied to calendar days — work through in sequence)
@@ -100,7 +101,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 2. [x] Repo skeleton — folders for reference agent, red-team harness, drift sentinel, dashboard, shared ground truth.
 3. [x] `graphify install --project` + `graphify hook install` in this repo.
 4. [x] Ground-truth data — `catalog.json` + `policies.json`. Both engines read from this; build it first.
-5. [x] Environment setup — Groq/Gemini/Claude API keys, Razorpay test-mode keys, Supabase project, `.env` template. (Claude key deferred, see Section 4.1 — Gemini powers the reference agent for v1.)
+5. [x] Environment setup — Groq/Gemini API keys, Razorpay test-mode keys, Supabase project, `.env` template. (No Claude/Anthropic key — dropped, see Section 4.1.)
 
 **Reference Agent**
 6. [x] Basic single-turn Q&A agent answering from ground truth via Gemini 3.5 Flash-Lite, no attack resistance yet.
@@ -113,8 +114,8 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 11. [x] Install DeepTeam, wire up `OWASP_ASI_2026` framework against the reference agent's `model_callback`, pointed at Groq/Gemini.
 12. [x] Add custom vulnerabilities: price manipulation, fake discount codes, unauthorized refunds, catalog-field prompt injection, mandate bypass.
 13. [x] Attack Success Rate scoring per category, each labeled with its ASI code.
-14. [x] Connect to Supabase logging. (Code complete and connection-verified; `scripts/setup_supabase.sql` still needs to be run in the Supabase SQL editor before live inserts succeed — see DEBUG_JOURNAL.md 2026-08-24.)
-15. [ ] First full batch run at real volume; sanity-check the numbers. **Blocked on Groq's free-tier daily token cap** (hit 198,802/200,000 from build-time testing alone) — needs either next day's quota reset or a Developer-tier decision before this can run at real volume. See BUGS.md.
+14. [x] Connect to Supabase logging. (Code complete, `scripts/setup_supabase.sql` run and verified live, RLS confirmed working.)
+15. [ ] First full batch run at real volume; sanity-check the numbers. `redteam/run_full.py` runs the entire `OWASP_ASI_2026` framework (all 10 categories, 61 vulnerability types) plus all 4 custom commerce vulnerabilities in one pass (68 test cases, `attacks_per_vulnerability_type=1`), sized to fit inside a fresh 200K-token daily cap. **Repeatedly blocked by Groq's free-tier daily token cap (TPD)** — confirmed rolling 24h window, not a fixed reset (see BUGS.md). Per Section 6's quota policy, this is now a repeated, demonstrated blocker — Developer-tier decision is warranted, not preemptive.
 
 **Drift Sentinel**
 16. Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for policy text.
@@ -134,20 +135,20 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 **Submission Prep**
 27. Stage the "failure handled gracefully" scenario deliberately.
 28. README: architecture, setup, how to reproduce the numbers, explicit note on which parts are rule-based vs. LLM-judged and why.
-29. Finalize Debug Journal entries (Section 8).
+29. Finalize `BUGS.md` entries (Section 8).
 30. Script the 5-minute video: cooking/meal-planning analogy, structured as problem → solution → demo, ending with what broke and how it was fixed. Video may be unlisted.
 31. Record, edit, final repo cleanup, submit.
 32. Keep the keep-alive Actions running until you hear back — no published interview timeline exists.
 
 **Stretch (only if steps 1–29 are done with real time left)**: upgrade reference agent to cart + coupon + multi-step checkout.
 
-## 8. Debug Journal — Maintain Throughout, Don't Reconstruct Later
+## 8. Bug Log — Maintain Throughout, Don't Reconstruct Later
 
-Keep a running `DEBUG_JOURNAL.md`. Every real breakage — a rate limit, a flaky non-deterministic ASR run, a Streamlit/Supabase sync bug, a bad ground-truth assumption — gets logged with a rough timestamp and what fixed it, *as it happens*. This directly feeds the video's required "what broke, how you recovered" segment and the Failure Recovery judging axis — it needs to be genuine.
+Keep a running `BUGS.md` (single file — a `Date | Component | Symptom | Root Cause | Fix | Submission-relevant note | Status` table, chronological narrative and structured lookup merged into one). Every real breakage — a rate limit, a flaky non-deterministic ASR run, a Streamlit/Supabase sync bug, a bad ground-truth assumption — gets logged with a rough timestamp and what fixed it, *as it happens*, with the submission-relevant note flagging which deliverable it feeds (video's "what broke" segment, README known-issues, or blank). This directly feeds the video's required "what broke, how you recovered" segment and the Failure Recovery judging axis — it needs to be genuine.
 
 ## 9. Submission Deliverables
 
-1. **Public GitHub repository**: reference agent + harness + drift sentinel + dashboard + README + Debug Journal.
+1. **Public GitHub repository**: reference agent + harness + drift sentinel + dashboard + README + `BUGS.md`.
 2. **Live dashboard**: Streamlit Cloud, public link, kept alive per Section 5.
 3. **5-minute video** (can be unlisted): cooking/meal-planning analogy; covers the problem, why it matters, the solution, the tech used, key technical decisions, what broke, and how it was fixed.
 4. **README**: setup, architecture, how to reproduce the ASR and drift numbers, and the rule-based-vs-LLM-judged breakdown from Section 5.
