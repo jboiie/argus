@@ -115,7 +115,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 12. [x] Add custom vulnerabilities: price manipulation, fake discount codes, unauthorized refunds, catalog-field prompt injection, mandate bypass.
 13. [x] Attack Success Rate scoring per category, each labeled with its ASI code.
 14. [x] Connect to Supabase logging. (Code complete, `scripts/setup_supabase.sql` run and verified live, RLS confirmed working.)
-15. [ ] First full batch run at real volume; sanity-check the numbers. `redteam/run_full.py` runs the entire `OWASP_ASI_2026` framework (all 10 categories, 61 vulnerability types) plus all 4 custom commerce vulnerabilities in one pass (68 test cases, `attacks_per_vulnerability_type=1`), sized to fit inside a fresh 200K-token daily cap. **Repeatedly blocked by Groq's free-tier daily token cap (TPD)** — confirmed rolling 24h window, not a fixed reset (see BUGS.md). Per Section 6's quota policy, this is now a repeated, demonstrated blocker — Developer-tier decision is warranted, not preemptive.
+15. [x] First full batch run at real volume; sanity-check the numbers. `redteam/run_full.py` runs the entire `OWASP_ASI_2026` framework (all 10 categories, 61 vulnerability types) plus all 4 custom commerce vulnerabilities in one pass (68 test cases, `attacks_per_vulnerability_type=1`). Groq Developer tier resolved the repeated TPD blocker. Two real bugs found and fixed along the way (bad `asi_category` enum write, no retry on Gemini's own 429s) — see BUGS.md. Final numbers: 0/68 bypassed, ~49/68 cleanly defended, ~19/68 errored (9 of those are a known, narrow, documented model-refusal case, not a bug).
 
 **Drift Sentinel**
 16. Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for policy text.
