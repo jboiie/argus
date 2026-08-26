@@ -6,7 +6,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 
 ## Status
 
-Reference agent, pre-deployment red-team harness, post-deployment drift sentinel, and dashboard all built and verified live (PROJECT_DESC.md build steps 1-24; step 25's code is ready and locally verified, actual Streamlit Cloud deployment pending). See `BUGS.md` for what broke and how it was fixed along the way.
+Reference agent, pre-deployment red-team harness, post-deployment drift sentinel, and dashboard all built, deployed, and verified live (PROJECT_DESC.md build steps 1-25). See `BUGS.md` for what broke and how it was fixed along the way.
 
 ## Architecture
 

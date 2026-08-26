@@ -129,7 +129,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 22. [x] Wire tab 1 to red-team results (ASR by category/ASI code). `dashboard/data.py::compute_asr_by_category()` — same aggregation as `redteam/scoring.py::compute_asr`, off logged `attack_events` rows. Live-verified: 165 real rows, 55 category groups.
 23. [x] Wire tab 2 to drift feed (incidents over time). `drift_incidents_over_time()` + `drift_cause_breakdown()` + the false-positive cost metric (`drift/audit.py`). Live-verified: 128 real rows.
 24. [x] Audit trail detail view per incident. Both tabs let you pick an `attack_id`/`incident_id` and see full detail plus the linked `session_turns` conversation (closes the loop from step 20's audit-trail logging).
-25. [~] Deploy to Streamlit Cloud; verify the public link loads with live data. **Code is ready and locally verified** (`streamlit run dashboard/app.py` boots clean, all data functions confirmed against live Supabase with zero errors) — the actual deploy click-through needs your Streamlit Cloud account, not something achievable without browser/account access. See README's new "Deploying the dashboard" section for the exact steps (repo must go public first).
+25. [x] Deploy to Streamlit Cloud; verify the public link loads with live data. Deployed and confirmed loading live data. Hit one real deployment-only bug (`sys.path` didn't include the repo root under Streamlit Cloud's mount, `ModuleNotFoundError: No module named 'dashboard'`) — fixed and verified, see BUGS.md.
 26. Set up the Streamlit + Supabase keep-alive GitHub Actions (Section 5) — leave running.
 
 **Submission Prep**
