@@ -133,7 +133,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 26. Set up the Streamlit + Supabase keep-alive GitHub Actions (Section 5) — leave running.
 
 **Submission Prep**
-27. Stage the "failure handled gracefully" scenario deliberately.
+27. [x] Graceful-degradation mechanism built 2026-08-26 (`agent/drift_guard.py` + `agent/tools.py` mandate gate — see BUGS.md). Staging the video clip of it is still open.
 28. README: architecture, setup, how to reproduce the numbers, explicit note on which parts are rule-based vs. LLM-judged and why.
 29. Finalize `BUGS.md` entries (Section 8).
 30. Script the 5-minute video: cooking/meal-planning analogy, structured as problem → solution → demo, ending with what broke and how it was fixed. Video may be unlisted.
