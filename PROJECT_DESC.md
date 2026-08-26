@@ -140,7 +140,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 31. Record, edit, final repo cleanup, submit.
 32. Keep the keep-alive Actions running until you hear back — no published interview timeline exists.
 
-**Stretch (only if steps 1–29 are done with real time left)**: upgrade reference agent to cart + coupon + multi-step checkout.
+**Stretch (only if steps 1–29 are done with real time left)**: upgrade reference agent to cart + coupon + multi-step checkout. **[x] Done 2026-08-26**, ahead of the original gate (steps 26/27/29 still open at the time — real runway to Sep 5 made this a deliberate call, not a slip). `agent/cart.py` (server-side cart/coupon/total, deterministic), `coupons.json` ground truth, `add_to_cart`/`apply_coupon` tools, `create_payment_link` reworked to never trust a model-supplied amount (a real pre-existing gap, fixed as part of this — see BUGS.md). Mandate schema extended (`line_items`, `coupon_code`, `migrate_003`). Live-verified end to end: add → coupon → confirm → correct server-computed total. Found and fixed a genuine Gemini API turn-ordering bug along the way (see BUGS.md). Full smoke test suite (10/10) still passes against the upgraded agent.
 
 ## 8. Bug Log — Maintain Throughout, Don't Reconstruct Later
 
