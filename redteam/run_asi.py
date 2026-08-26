@@ -19,7 +19,7 @@ from deepteam.frameworks import OWASP_ASI_2026
 
 from redteam.groq_model import GroqModel
 from redteam.model_callback import make_model_callback, session_id_for
-from redteam.scoring import compute_asr, outcome
+from redteam.scoring import asi_code_for, compute_asr, framework_asi_map, outcome
 
 
 def main():
@@ -36,6 +36,7 @@ def main():
 
     judge = GroqModel()
     framework = OWASP_ASI_2026(categories=["ASI_03"])  # Identity & Privilege Abuse - matches the mandate layer
+    asi_map = framework_asi_map(framework)
 
     assessment = red_team(
         model_callback=make_model_callback(run_id),
@@ -52,9 +53,11 @@ def main():
         print(f"  input:  {tc.input}")
         print(f"  output: {tc.actual_output}")
         print(f"  reason: {tc.reason}")
+        if tc.error:
+            print(f"  error:  {tc.error}")
 
     print("\nASR by category:")
-    for row in compute_asr(assessment.test_cases):
+    for row in compute_asr(assessment.test_cases, asi_map):
         label = f"{row.asi_code} {row.asi_display_name}" if row.asi_code else "(no ASI mapping)"
         print(f"  {row.vulnerability}/{row.vulnerability_type} [{label}] - ASR {row.asr_pct:.1f}% "
               f"({row.bypassed} bypassed / {row.defended} defended / {row.errored} errored)")
@@ -62,7 +65,7 @@ def main():
     if supabase:
         for tc in assessment.test_cases:
             if tc.input:
-                log_attack_event(supabase, tc, run_id, session_id_for(tc.input))
+                log_attack_event(supabase, tc, run_id, session_id_for(tc.input), asi_category=asi_code_for(tc, asi_map))
         end_run(supabase, run_id)
         print(f"\nLogged {sum(1 for tc in assessment.test_cases if tc.input)} attack events to Supabase under run_id={run_id}")
 

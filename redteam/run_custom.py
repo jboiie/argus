@@ -41,6 +41,8 @@ def main():
         print(f"  input:  {tc.input}")
         print(f"  output: {tc.actual_output}")
         print(f"  reason: {tc.reason}")
+        if tc.error:
+            print(f"  error:  {tc.error}")
 
     print("\nASR by category:")
     for row in compute_asr(assessment.test_cases):
