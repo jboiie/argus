@@ -110,6 +110,8 @@ def log_mandate(client: Client, mandate) -> None:
         "session_id": mandate.session_id,
         "scope": mandate.scope,
         "amount": mandate.amount,
+        "line_items": mandate.line_items,
+        "coupon_code": mandate.coupon_code,
         "product_id": mandate.product_id,
         "authorized_at": mandate.authorized_at.isoformat(),
         "expires_at": mandate.expires_at.isoformat(),

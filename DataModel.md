@@ -56,6 +56,17 @@ One row per **atomic claim**, not one row per topic — a topic like "refund" sp
 | `claim` | string | one atomic fact — the ground-truth text RAGAS Faithfulness checks a response claim against |
 | `category` | string | optional |
 
+## Entity 2.5: Coupon (`coupons.json`)
+
+Ground truth for the cart stretch goal (Section 4.1) — flat file, same pattern as Product/Policy. `agent/cart.py::apply_coupon` is the only place a code gets validated against this; the reference agent never honors a code that isn't listed here and active, no matter how a customer phrases the request.
+
+| Field | Type | Notes |
+|---|---|---|
+| `code` | string | e.g. `"WELCOME10"` |
+| `discount_type` | enum | `percent` \| `flat` |
+| `discount_value` | number | percent (0–100) or rupees, depending on `discount_type` |
+| `active` | boolean | matches `policy_discount_validity`'s claim — an inactive code must be rejected, never silently honored |
+
 ## Entity 3: Mandate (logged per authorization attempt, Supabase)
 
 Logged for **every** mandate creation attempt, regardless of whether a real Razorpay call fires — Supabase rows are free at this volume. The 30-link cap only limits the real API call, gated separately.
@@ -66,8 +77,10 @@ Logged for **every** mandate creation attempt, regardless of whether a real Razo
 | `run_id` | string (UUID) | same reasoning as Attack Event/Drift Incident — separates phases, lets a crashed/rerun batch's orphaned rows be identified and excluded |
 | `session_id` | string | |
 | `scope` | enum | `purchase` \| `refund` \| `discount_application` |
-| `amount` | integer | paise — see currency convention above |
-| `product_id` | string | references `Product.id`. Single product only — fine for v1; becomes a line-items array if the cart stretch goal (Section 4.1) is reached. Not needed now, noted so it isn't a surprise mid-stretch-build. |
+| `amount` | integer | paise, post-discount total — see currency convention above |
+| `line_items` | array, nullable | `[{"product_id": str, "quantity": int}, ...]` — the cart stretch goal (Section 4.1) reached; computed server-side (`agent/cart.py::compute_total`) against `catalog.json`'s real prices, never trusted from the model. `null` only on pre-cart historical rows. |
+| `coupon_code` | string, nullable | the applied discount code, if any — validated against `coupons.json`'s active list before ever reaching here (see `agent/cart.py::apply_coupon`) |
+| `product_id` | string, nullable, deprecated | pre-cart single-product field. Kept only so old rows still read back correctly; new code always writes `line_items` instead. |
 | `authorized_at` | timestamptz | |
 | `expires_at` | timestamptz | mandate validity window — without this there's no way to test or demo a **replay attack** (reusing an old, legitimately-issued mandate to authorize a new action), a well-known attack class adjacent to ASI03. `"mandate_replay"` should be an explicit `vulnerability` value in Attack Event once the harness covers it. |
 | `user_confirmed` | boolean | did a real user-confirmation turn precede this |

@@ -21,8 +21,9 @@ class Mandate:
     run_id: str
     session_id: str
     scope: str  # purchase | refund | discount_application
-    amount: int  # paise
-    product_id: str | None
+    amount: int  # paise, post-discount total
+    line_items: list[dict]  # [{"product_id": str, "quantity": int}, ...]
+    coupon_code: str | None
     authorized_at: datetime
     expires_at: datetime
     user_confirmed: bool
@@ -30,6 +31,7 @@ class Mandate:
     bypass_confirmed_at: datetime | None = None
     is_live_demo: bool = False
     real_call_fired: bool = False
+    product_id: str | None = None  # deprecated - kept only for reading old pre-cart rows, new code never sets it
 
 
 def create_mandate(
@@ -37,7 +39,8 @@ def create_mandate(
     session_id: str,
     scope: str,
     amount: int,
-    product_id: str | None,
+    line_items: list[dict],
+    coupon_code: str | None,
     user_confirmed: bool,
     is_live_demo: bool = False,
 ) -> Mandate:
@@ -48,7 +51,8 @@ def create_mandate(
         session_id=session_id,
         scope=scope,
         amount=amount,
-        product_id=product_id,
+        line_items=line_items,
+        coupon_code=coupon_code,
         authorized_at=now,
         expires_at=now + timedelta(minutes=MANDATE_TTL_MINUTES),
         user_confirmed=user_confirmed,
@@ -64,11 +68,12 @@ def is_valid(mandate: Mandate) -> bool:
 
 
 def demo():
-    m1 = create_mandate("run_dev", "sess_1", "purchase", 349900, "prod_001", user_confirmed=True)
+    items = [{"product_id": "prod_001", "quantity": 1}]
+    m1 = create_mandate("run_dev", "sess_1", "purchase", 349900, items, None, user_confirmed=True)
     assert m1.status == "authorized"
     assert is_valid(m1)
 
-    m2 = create_mandate("run_dev", "sess_1", "purchase", 349900, "prod_001", user_confirmed=False)
+    m2 = create_mandate("run_dev", "sess_1", "purchase", 349900, items, None, user_confirmed=False)
     assert m2.status == "denied"
     assert not is_valid(m2)
 
