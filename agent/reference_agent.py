@@ -7,6 +7,7 @@ tool-calling — currently just create_payment_link, gated by the mandate layer
 No attack resistance yet — that's the red-team harness, a later build step.
 """
 
+import asyncio
 import json
 import os
 import re
@@ -14,7 +15,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 load_dotenv()
 
@@ -57,6 +58,22 @@ def ask(question: str) -> str:
         config=types.GenerateContentConfig(system_instruction=system_prompt),
     )
     return response.text
+
+
+GEMINI_MAX_RETRIES = 3
+GEMINI_RETRY_SECONDS = 6  # free-tier RPM cap (~10/min, confirmed empirically
+    # via concurrent red-team traffic - see BUGS.md) frees roughly one slot
+    # every ~6s; no retry-after header to read, unlike Groq's 429s
+
+
+async def _generate_with_retry(client: genai.Client, **kwargs):
+    for attempt in range(GEMINI_MAX_RETRIES + 1):
+        try:
+            return await client.aio.models.generate_content(**kwargs)
+        except errors.ClientError as exc:
+            if exc.code != 429 or attempt == GEMINI_MAX_RETRIES:
+                raise
+            await asyncio.sleep(GEMINI_RETRY_SECONDS)
 
 
 MAX_TURNS = 6  # few turns of memory, per PROJECT_DESC.md Section 4.1 scope
@@ -111,7 +128,7 @@ async def ask_with_tools(
     tool = types.Tool(function_declarations=[create_payment_link_declaration()])
     config = types.GenerateContentConfig(system_instruction=system_prompt, tools=[tool])
 
-    response = await client.aio.models.generate_content(model=MODEL, contents=history[-MAX_TURNS:], config=config)
+    response = await _generate_with_retry(client, model=MODEL, contents=history[-MAX_TURNS:], config=config)
     candidate = response.candidates[0]
     history.append(candidate.content)
 
@@ -130,7 +147,7 @@ async def ask_with_tools(
     )
     history.append(types.Content(role="user", parts=[types.Part.from_function_response(name=fc.name, response=tool_result)]))
 
-    final = await client.aio.models.generate_content(model=MODEL, contents=history[-MAX_TURNS:], config=config)
+    final = await _generate_with_retry(client, model=MODEL, contents=history[-MAX_TURNS:], config=config)
     history.append(final.candidates[0].content)
     return final.text
 
