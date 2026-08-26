@@ -6,14 +6,14 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 
 ## Status
 
-Reference agent, pre-deployment red-team harness, and post-deployment drift sentinel all built and verified live (PROJECT_DESC.md build steps 1-20). Dashboard not started yet. See `BUGS.md` for what broke and how it was fixed along the way.
+Reference agent, pre-deployment red-team harness, post-deployment drift sentinel, and dashboard all built and verified live (PROJECT_DESC.md build steps 1-24; step 25's code is ready and locally verified, actual Streamlit Cloud deployment pending). See `BUGS.md` for what broke and how it was fixed along the way.
 
 ## Components
 
 - **Reference Commerce Agent** (`agent/`) — chat checkout agent over `catalog.json`/`policies.json`, Gemini 3.5 Flash-Lite (Groq also available, see Design Decisions below), MCP client against Razorpay's remote MCP server, bounded multi-turn memory, mandate/authorization layer gating `create_payment_link` behind a deterministic transcript-based confirmation check.
 - **Pre-Deployment Engine** (`redteam/`) — DeepTeam-based red-team harness: `OWASP_ASI_2026` framework plus 4 commerce-specific custom vulnerabilities (price manipulation, fake discount codes, unauthorized refunds, catalog-field prompt injection, mandate bypass), each ASI-labeled. Attack Success Rate scored per category (`redteam/scoring.py`), logged to Supabase (`telemetry/supabase_client.py`).
 - **Post-Deployment Engine** (`drift/`) — drift sentinel comparing agent responses against ground-truth catalog/policy data: exact match for numeric fields (`drift/diff.py`), RAGAS Faithfulness for policy text, self-consistency sampling for claims not covered by ground truth (`drift/self_consistency.py`). `drift/sampler.py` runs a full pass (25 checks) across products/policies/uncovered questions per session; `drift/classify.py` labels each flagged incident with a cause (`stale_ground_truth`/`fabrication`/`inconsistency`) and severity (`critical`/`moderate`); `drift/audit.py` computes the false-positive review cost (see Design Decisions). `drift/staged_injection.py` is the deliberately-staged demo (step 19).
-- **Dashboard** — Streamlit app with pre-deployment ASR report and live drift feed. Not started.
+- **Dashboard** (`dashboard/`) — Streamlit app, two tabs: pre-deployment ASR report by ASI category, and a live drift feed (incidents over time, cause breakdown, false-positive cost). Both tabs have an audit-trail detail view pulling the full logged conversation behind any selected incident. Read-only — anon key only, see Setup.
 
 ## Setup
 
@@ -60,4 +60,4 @@ streamlit run dashboard/app.py  # local dashboard - needs SUPABASE_URL/SUPABASE_
 
 ## License
 
-TBD.
+MIT — see `LICENSE`.
