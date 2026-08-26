@@ -1,0 +1,31 @@
+name: Keep-alive
+
+# Streamlit Cloud sleeps an idle app; Supabase free tier pauses a project
+# idle 7 days. Both wake on a random visitor too, but the demo can't
+# depend on someone stumbling in before the interview - see BUGS.md.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # every 6h - keeps Streamlit awake
+    - cron: "0 3 * * *"     # daily 03:00 UTC - keeps Supabase from 7-day pause
+  workflow_dispatch: {}
+
+jobs:
+  ping-streamlit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping dashboard
+        run: curl -fsS --max-time 30 https://ageus-agent.streamlit.app/ -o /dev/null
+
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trivial read against runs table
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          curl -fsS --max-time 30 \
+            "$SUPABASE_URL/rest/v1/runs?select=run_id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY"
