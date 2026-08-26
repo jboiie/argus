@@ -1,65 +1,79 @@
-"""
-Dashboard data layer — Supabase queries + pandas aggregation.
-
-Split from app.py so the aggregation math (compute_summary,
-requests_over_time, blocked_reason_breakdown) is unit-testable without a
-live Supabase connection or Streamlit runtime. Only get_client/fetch_events
-touch the network.
-
-Note: aegis_events logs ALL traffic (attacks and benign mixed), not a
-labeled red-team run, so "blocked / total" here is a live block rate, not
-the Attack Success Rate reported in README Tables 1-4 (which comes from
-redteam/evaluation/metrics.py against a known attack corpus).
+"""Dashboard data layer - Supabase queries + pandas aggregation, split
+from app.py so the aggregation math is unit-testable without a live
+Supabase connection or Streamlit runtime. Only get_client/fetch_* touch
+the network - build steps 21-24.
 """
 
 import pandas as pd
-from supabase import create_client, Client
+from supabase import Client, create_client
+
+from redteam.scoring import ASI_DISPLAY_NAMES
 
 
 def get_client(url: str, key: str) -> Client:
     return create_client(url, key)
 
 
-def fetch_events(client: Client, table: str = "aegis_events", limit: int = 500) -> list[dict]:
-    resp = client.table(table).select("*").order("timestamp", desc=True).limit(limit).execute()
-    return resp.data
+def fetch_attack_events(client: Client, limit: int = 1000) -> pd.DataFrame:
+    resp = client.table("attack_events").select("*").order("timestamp", desc=True).limit(limit).execute()
+    return pd.DataFrame(resp.data)
 
 
-def events_to_df(rows: list[dict]) -> pd.DataFrame:
-    df = pd.DataFrame(rows)
+def fetch_drift_incidents(client: Client, limit: int = 1000) -> pd.DataFrame:
+    resp = client.table("drift_incidents").select("*").order("timestamp", desc=True).limit(limit).execute()
+    return pd.DataFrame(resp.data)
+
+
+def fetch_session_turns(client: Client, session_id: str) -> pd.DataFrame:
+    resp = client.table("session_turns").select("*").eq("session_id", session_id).order("turn_index").execute()
+    return pd.DataFrame(resp.data)
+
+
+def compute_asr_by_category(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per (vulnerability, vulnerability_type) - same aggregation
+    as redteam/scoring.py::compute_asr, but off already-logged DB rows
+    instead of live DeepTeam test cases (the dashboard has no access to
+    those, only what's in Supabase)."""
+    columns = ["asi_category", "asi_display_name", "vulnerability", "vulnerability_type", "attempts", "bypassed", "defended", "errored", "asr_pct"]
     if df.empty:
-        return df
+        return pd.DataFrame(columns=columns)
+
+    rows = []
+    for (vuln, vtype), g in df.groupby(["vulnerability", "vulnerability_type"]):
+        bypassed = int((g["outcome"] == "bypassed").sum())
+        defended = int((g["outcome"] == "defended").sum())
+        errored = int((g["outcome"] == "errored").sum())
+        asi_code = next((c for c in g["asi_category"] if c), None)
+        scored = bypassed + defended
+        rows.append({
+            "asi_category": asi_code,
+            "asi_display_name": ASI_DISPLAY_NAMES.get(asi_code),
+            "vulnerability": vuln,
+            "vulnerability_type": vtype,
+            "attempts": bypassed + defended + errored,
+            "bypassed": bypassed,
+            "defended": defended,
+            "errored": errored,
+            "asr_pct": (bypassed / scored * 100) if scored else 0.0,
+        })
+    return pd.DataFrame(rows, columns=columns).sort_values(["asi_category", "vulnerability", "vulnerability_type"], na_position="last")
+
+
+def drift_incidents_over_time(df: pd.DataFrame, freq: str = "D") -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=["total", "flagged"])
+    df = df.copy()
     df["timestamp"] = pd.to_datetime(df["timestamp"])
-    return df
-
-
-def compute_summary(df: pd.DataFrame) -> dict:
-    if df.empty:
-        return {"total": 0, "blocked": 0, "block_rate_pct": 0.0, "avg_latency_ms": 0.0}
-    total = len(df)
-    blocked = int(df["blocked"].sum())
-    return {
-        "total": total,
-        "blocked": blocked,
-        "block_rate_pct": 100.0 * blocked / total,
-        "avg_latency_ms": float(df["latency_ms"].mean()),
-    }
-
-
-def requests_over_time(df: pd.DataFrame, freq: str = "h") -> pd.DataFrame:
-    """Bucket requests by time; returns columns [total, blocked] indexed by bucket start."""
-    if df.empty:
-        return pd.DataFrame(columns=["total", "blocked"])
     bucket = df.set_index("timestamp").sort_index()
-    total = bucket["blocked"].resample(freq).count().rename("total")
-    blocked = bucket["blocked"].resample(freq).sum().rename("blocked")
-    return pd.concat([total, blocked], axis=1)
+    total = bucket["flagged"].resample(freq).count().rename("total")
+    flagged = bucket["flagged"].resample(freq).sum().rename("flagged")
+    return pd.concat([total, flagged], axis=1)
 
 
-def blocked_reason_breakdown(df: pd.DataFrame) -> pd.Series:
-    if df.empty:
+def drift_cause_breakdown(df: pd.DataFrame) -> pd.Series:
+    if df.empty or "drift_cause" not in df:
         return pd.Series(dtype=int)
-    blocked = df[df["blocked"] == True]  # noqa: E712 (pandas boolean mask, not identity check)
-    if blocked.empty:
+    flagged = df[df["flagged"] == True]  # noqa: E712 (pandas boolean mask, not identity check)
+    if flagged.empty:
         return pd.Series(dtype=int)
-    return blocked["blocked_reason"].value_counts()
+    return flagged["drift_cause"].dropna().value_counts()

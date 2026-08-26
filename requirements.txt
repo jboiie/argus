@@ -5,3 +5,5 @@ deepteam
 supabase
 ragas
 langchain-community<0.4
+streamlit
+pandas
