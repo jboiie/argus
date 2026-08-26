@@ -3,3 +3,5 @@ python-dotenv
 mcp
 deepteam
 supabase
+ragas
+langchain-community<0.4

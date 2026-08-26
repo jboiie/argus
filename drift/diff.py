@@ -1,0 +1,129 @@
+"""Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness
+for policy text - build step 16 (PROJECT_DESC.md Section 4.4).
+
+Numeric fields are deliberately rule-based, not an LLM call - Section 5's
+"AI Judgment" axis penalizes forcing AI where deterministic logic would do.
+RAGAS is reserved for the genuinely fuzzy case: does a free-text policy
+answer match a free-text ground-truth claim.
+"""
+
+import os
+import re
+from dataclasses import dataclass
+from typing import Any
+
+from openai import AsyncOpenAI
+from ragas.llms import llm_factory
+from ragas.metrics.collections import Faithfulness
+
+from redteam.groq_model import DEFAULT_MODEL, GROQ_BASE_URL
+
+# Below this Faithfulness score, a response is flagged as drifted. RAGAS
+# decomposes a response into individual claims and checks each against the
+# ground-truth context - 1.0 requires every claim fully supported. 0.7 is
+# an explicit, documented threshold (not tuned against a labeled set):
+# tolerates minor phrasing variance without missing an actually-wrong claim.
+FAITHFULNESS_THRESHOLD = 0.7
+
+
+def _judge_client() -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=os.environ["GROQ_API_KEY"], base_url=GROQ_BASE_URL)
+
+
+@dataclass
+class DriftCheckResult:
+    """Matches DataModel.md's Drift Incident fields this build step covers.
+    run_id/session_id/incident_id are attached by the caller at log time,
+    not here - this module only performs the check itself.
+    """
+    check_type: str  # "numeric" | "faithfulness"
+    question: str
+    ground_truth_ref: str
+    ground_truth_type: str  # "product" | "policy"
+    expected: Any  # snapshot at check-time, per DataModel.md
+    actual: Any
+    score: float | None
+    check_status: str  # "completed" | "errored"
+    flagged: bool | None  # null when check_status = errored, not false
+
+
+_NUMBER_RE = re.compile(r"[\d,]+(?:\.\d+)?")
+
+
+def _extract_number(text: str) -> float | None:
+    match = _NUMBER_RE.search(text)
+    return float(match.group().replace(",", "")) if match else None
+
+
+def check_numeric(question: str, product_id: str, expected_price: float, actual_text: str) -> DriftCheckResult:
+    """Exact match against a number pulled from the agent's raw text
+    response. DataModel.md's `actual` column is NOT NULL, so a parse
+    failure stores the raw text itself (useful for debugging why it
+    failed) rather than null - check_status=errored is what signals the
+    failure, not an absent actual."""
+    actual_price = _extract_number(actual_text)
+    if actual_price is None:
+        return DriftCheckResult(
+            check_type="numeric", question=question, ground_truth_ref=product_id,
+            ground_truth_type="product", expected=expected_price, actual=actual_text,
+            score=None, check_status="errored", flagged=None,
+        )
+    return DriftCheckResult(
+        check_type="numeric", question=question, ground_truth_ref=product_id,
+        ground_truth_type="product", expected=expected_price, actual=actual_price,
+        score=None, check_status="completed", flagged=actual_price != expected_price,
+    )
+
+
+async def check_faithfulness(question: str, policy_id: str, claim: str, response: str) -> DriftCheckResult:
+    """RAGAS Faithfulness: decomposes `response` into claims, checks each
+    against `claim` (the ground-truth policy text) as retrieved context."""
+    try:
+        scorer = Faithfulness(llm=llm_factory(DEFAULT_MODEL, client=_judge_client()))
+        result = await scorer.ascore(user_input=question, response=response, retrieved_contexts=[claim])
+        score = result.value
+    except Exception:
+        return DriftCheckResult(
+            check_type="faithfulness", question=question, ground_truth_ref=policy_id,
+            ground_truth_type="policy", expected=claim, actual=response,
+            score=None, check_status="errored", flagged=None,
+        )
+    return DriftCheckResult(
+        check_type="faithfulness", question=question, ground_truth_ref=policy_id,
+        ground_truth_type="policy", expected=claim, actual=response,
+        score=score, check_status="completed", flagged=score < FAITHFULNESS_THRESHOLD,
+    )
+
+
+async def demo():
+    if not os.environ.get("GROQ_API_KEY"):
+        print("GROQ_API_KEY not set - skipping live call.")
+        return
+
+    numeric_ok = check_numeric("What does the beanie cost?", "prod_003", expected_price=899, actual_text="Rs.899")
+    numeric_drift = check_numeric("What does the beanie cost?", "prod_003", expected_price=899, actual_text="Rs.799")
+    numeric_unparseable = check_numeric("What does the beanie cost?", "prod_003", expected_price=899, actual_text="I don't know.")
+    assert not numeric_ok.flagged and numeric_ok.check_status == "completed"
+    assert numeric_drift.flagged
+    assert numeric_unparseable.check_status == "errored" and numeric_unparseable.actual == "I don't know."
+    print(f"numeric (matching): flagged={numeric_ok.flagged}")
+    print(f"numeric (drifted): flagged={numeric_drift.flagged}, expected={numeric_drift.expected}, actual={numeric_drift.actual}")
+    print(f"numeric (unparseable): check_status={numeric_unparseable.check_status}, actual={numeric_unparseable.actual!r}")
+
+    claim = "Items can be returned for a refund within 30 days of delivery."
+    faithful = await check_faithfulness("What is the refund window?", "policy_refund_window", claim,
+                                         "Items can be returned for a refund within 30 days of delivery.")
+    unfaithful = await check_faithfulness("What is the refund window?", "policy_refund_window", claim,
+                                           "Items can be returned for a refund within 90 days, no questions asked.")
+    assert faithful.check_status == "completed" and not faithful.flagged
+    assert unfaithful.check_status == "completed" and unfaithful.flagged
+    print(f"faithfulness (matching): score={faithful.score}, flagged={faithful.flagged}")
+    print(f"faithfulness (drifted): score={unfaithful.score}, flagged={unfaithful.flagged}")
+
+    print("\nAll assertions passed.")
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(demo())

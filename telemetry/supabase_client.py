@@ -54,6 +54,27 @@ def log_attack_event(client: Client, tc, run_id: str, session_id: str, mandate_i
     client.table("attack_events").insert(row).execute()
 
 
+def log_drift_incident(client: Client, result, run_id: str, session_id: str) -> None:
+    """result is a drift.diff.DriftCheckResult. drift_cause/severity are
+    intentionally left unset here - classifying them needs a real incident
+    plus prior ground-truth values to compare against (see DataModel.md's
+    Drift Incident entity), not something this build step computes yet."""
+    row = {
+        "run_id": run_id,
+        "check_type": result.check_type,
+        "question": result.question,
+        "ground_truth_ref": result.ground_truth_ref,
+        "ground_truth_type": result.ground_truth_type,
+        "expected": result.expected,
+        "actual": result.actual,
+        "score": result.score,
+        "check_status": result.check_status,
+        "flagged": result.flagged,
+        "session_id": session_id,
+    }
+    client.table("drift_incidents").insert(row).execute()
+
+
 def log_mandate(client: Client, mandate) -> None:
     """mandate is an agent.mandate.Mandate instance."""
     row = {
@@ -106,8 +127,16 @@ def demo():
     assert len(read_back.data) == 1, "expected exactly one row written and read back"
     assert read_back.data[0]["vulnerability"] == "RBAC"
 
+    from drift.diff import check_numeric
+
+    drift_result = check_numeric("self-check question", "prod_001", expected_price=100, actual_text="Rs.100")
+    log_drift_incident(client, drift_result, run_id, session_id)
+    drift_read_back = client.table("drift_incidents").select("*").eq("session_id", session_id).execute()
+    assert len(drift_read_back.data) == 1, "expected exactly one drift_incidents row written and read back"
+    assert drift_read_back.data[0]["check_type"] == "numeric"
+
     end_run(client, run_id)
-    print(f"Wrote and read back 1 attack_events row under run_id={run_id}. Schema and RLS working.")
+    print(f"Wrote and read back 1 attack_events row and 1 drift_incidents row under run_id={run_id}. Schema and RLS working.")
 
 
 if __name__ == "__main__":
