@@ -11,9 +11,18 @@ Run with: streamlit run dashboard/app.py
 """
 
 import os
+import sys
+from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
+
+# Streamlit puts the entry file's own directory (dashboard/) on sys.path,
+# not the repo root - so the repo-root-qualified imports below (this file
+# importing its own parent package, plus drift.audit) can't resolve
+# without this, even though it happens to work locally depending on how
+# `streamlit run` is invoked. Explicit and portable beats relying on that.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dashboard.data import (
     compute_asr_by_category,
