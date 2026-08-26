@@ -119,9 +119,9 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 
 **Drift Sentinel**
 16. [x] Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for policy text. `drift/diff.py` — `check_numeric()` is plain rule-based comparison (no LLM, per Section 5's AI Judgment axis), `check_faithfulness()` uses RAGAS's Faithfulness metric via `llm_factory` pointed at Groq. Logged via `telemetry/supabase_client.py::log_drift_incident()`, live-verified. (Hit a real ragas 0.4.3 packaging bug — unconditional `ChatVertexAI` import breaks for any non-VertexAI user; worked around by pinning `langchain-community<0.4`, see BUGS.md.)
-17. Self-consistency sampler for claims not covered by ground truth.
-18. Sampler that simulates repeated sessions; run it across remaining build days, not just once.
-19. Deliberately inject one ground-truth change mid-build; confirm it's caught and logged.
+17. [x] Self-consistency sampler for claims not covered by ground truth. `drift/self_consistency.py` — samples the agent N=3 times, a Groq judge scores agreement rate + majority answer.
+18. [x] Sampler that simulates repeated sessions; run it across remaining build days, not just once. `drift/sampler.py` — ties numeric/faithfulness/self-consistency together across all 8 products, 5 policy topics, and 3 uncovered questions (25 checks/session). Live-verified twice, catching two real bugs the first pass exposed (see BUGS.md); 25/25 clean on the second run. Meant to be rerun on subsequent build days, not just today, so the drift-over-time chart is real.
+19. [ ] Deliberately inject one ground-truth change mid-build; confirm it's caught and logged.
 20. Flag + log incidents to Supabase with full audit trail; false-positive cost metric.
 
 **Dashboard**
