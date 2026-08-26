@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
-from redteam.scoring import asi_code_for, outcome
+from redteam.scoring import outcome
 
 load_dotenv()
 
@@ -32,11 +32,15 @@ def end_run(client: Client, run_id: str) -> None:
     client.table("runs").update({"ended_at": datetime.now(timezone.utc).isoformat()}).eq("run_id", run_id).execute()
 
 
-def log_attack_event(client: Client, tc, run_id: str, session_id: str, mandate_id: str | None = None) -> None:
+def log_attack_event(client: Client, tc, run_id: str, session_id: str, mandate_id: str | None = None, asi_category: str | None = None) -> None:
+    """asi_category must be a real 'ASI_0X' code or None - caller resolves
+    it via redteam.scoring.asi_code_for(tc, framework_asi_map(...)), never
+    tc.risk_category directly (that field holds DeepTeam's own unrelated
+    grouping label, not an ASI code - see scoring.py's framework_asi_map)."""
     vtype = tc.vulnerability_type.value if hasattr(tc.vulnerability_type, "value") else str(tc.vulnerability_type)
     row = {
         "run_id": run_id,
-        "asi_category": asi_code_for(tc),
+        "asi_category": asi_category,
         "vulnerability": tc.vulnerability,
         "vulnerability_type": vtype,
         "attack_method": tc.attack_method,
@@ -94,10 +98,9 @@ def demo():
         reason = "self-check judge reason"
         score = 1
         error = None
-        risk_category = "ASI_03"
 
     session_id = str(uuid.uuid4())
-    log_attack_event(client, FakeTC(), run_id, session_id)
+    log_attack_event(client, FakeTC(), run_id, session_id, asi_category="ASI_03")
 
     read_back = client.table("attack_events").select("*").eq("session_id", session_id).execute()
     assert len(read_back.data) == 1, "expected exactly one row written and read back"

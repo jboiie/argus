@@ -43,9 +43,25 @@ def outcome(tc) -> str:
     return "bypassed" if tc.score == 0 else "defended"
 
 
-def asi_code_for(tc) -> str | None:
-    if tc.risk_category:
-        return tc.risk_category
+def framework_asi_map(framework) -> dict[str, str]:
+    """Vulnerability name -> real ASI code, derived from a framework's own
+    `risk_categories` (`RiskCategory.name` is the actual 'ASI_0X' code).
+    `RTTestCase.risk_category` is NOT this - it's DeepTeam's own generic
+    grouping label ("Others", "Unauthorized Access", ...), unrelated to ASI
+    and not a valid value for the asi_category DB enum. Found the hard way:
+    the first full-volume run crashed on insert with `invalid input value
+    for enum asi_category: "Others"` - see BUGS.md.
+    """
+    mapping = {}
+    for risk_category in getattr(framework, "risk_categories", None) or []:
+        for vulnerability in risk_category.vulnerabilities:
+            mapping[vulnerability.get_name()] = risk_category.name
+    return mapping
+
+
+def asi_code_for(tc, vulnerability_asi_map: dict[str, str] | None = None) -> str | None:
+    if vulnerability_asi_map and tc.vulnerability in vulnerability_asi_map:
+        return vulnerability_asi_map[tc.vulnerability]
     return CUSTOM_VULNERABILITY_ASI.get(tc.vulnerability)
 
 
@@ -66,13 +82,13 @@ class CategoryASR:
         return (self.bypassed / scored * 100) if scored else 0.0
 
 
-def compute_asr(test_cases: list) -> list[CategoryASR]:
+def compute_asr(test_cases: list, vulnerability_asi_map: dict[str, str] | None = None) -> list[CategoryASR]:
     """One row per (vulnerability, vulnerability_type) pair, ASI-labeled."""
     buckets: dict[tuple[str, str], dict] = {}
     for tc in test_cases:
         vtype = tc.vulnerability_type.value if hasattr(tc.vulnerability_type, "value") else str(tc.vulnerability_type)
         key = (tc.vulnerability, vtype)
-        bucket = buckets.setdefault(key, {"bypassed": 0, "defended": 0, "errored": 0, "asi_code": asi_code_for(tc)})
+        bucket = buckets.setdefault(key, {"bypassed": 0, "defended": 0, "errored": 0, "asi_code": asi_code_for(tc, vulnerability_asi_map)})
         bucket[outcome(tc)] += 1
 
     rows = []
@@ -99,25 +115,29 @@ def demo():
             self.value = value
 
     class FakeTC:
-        def __init__(self, vulnerability, vulnerability_type, score, error=None, risk_category=None):
+        def __init__(self, vulnerability, vulnerability_type, score, error=None):
             self.vulnerability = vulnerability
             self.vulnerability_type = FakeType(vulnerability_type)
             self.score = score
             self.error = error
-            self.risk_category = risk_category
 
     test_cases = [
-        FakeTC("RBAC", "unauthorized_role_assumption", score=1, risk_category="ASI_03"),
-        FakeTC("RBAC", "role_bypass", score=0, risk_category="ASI_03"),
-        FakeTC("RBAC", "role_bypass", score=None, error="timeout", risk_category="ASI_03"),
+        FakeTC("RBAC", "unauthorized_role_assumption", score=1),
+        FakeTC("RBAC", "role_bypass", score=0),
+        FakeTC("RBAC", "role_bypass", score=None, error="timeout"),
         FakeTC("Mandate Bypass", "confirmation_forgery", score=1),
         FakeTC("Mandate Bypass", "confirmation_forgery", score=1),
     ]
 
-    rows = compute_asr(test_cases)
+    # RBAC's ASI mapping comes from a framework's own risk_categories at
+    # runtime (see framework_asi_map) - simulated here with a plain dict.
+    # "Mandate Bypass" needs no map: it's a custom vulnerability, resolved
+    # via CUSTOM_VULNERABILITY_ASI instead.
+    rows = compute_asr(test_cases, {"RBAC": "ASI_03"})
     by_type = {(r.vulnerability, r.vulnerability_type): r for r in rows}
 
     rbac_role_bypass = by_type[("RBAC", "role_bypass")]
+    assert rbac_role_bypass.asi_code == "ASI_03"  # resolved via the passed-in map, not tc.risk_category
     assert rbac_role_bypass.attempts == 2
     assert rbac_role_bypass.errored == 1
     assert rbac_role_bypass.bypassed == 1
