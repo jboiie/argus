@@ -36,23 +36,37 @@ class DriftCheckResult:
     run_id/session_id/incident_id are attached by the caller at log time,
     not here - this module only performs the check itself.
     """
-    check_type: str  # "numeric" | "faithfulness"
+    check_type: str  # "numeric" | "faithfulness" | "self_consistency"
     question: str
-    ground_truth_ref: str
-    ground_truth_type: str  # "product" | "policy"
-    expected: Any  # snapshot at check-time, per DataModel.md
+    ground_truth_ref: str | None  # null for self_consistency - no Product/Policy id applies
+    ground_truth_type: str | None  # "product" | "policy" | null for self_consistency
+    expected: Any  # snapshot at check-time, per DataModel.md. null for self_consistency
     actual: Any
     score: float | None
     check_status: str  # "completed" | "errored"
     flagged: bool | None  # null when check_status = errored, not false
+    sampled_responses: list[str] | None = None  # self_consistency rows only
 
 
+_PRICE_RE = re.compile(r"(?:Rs\.?|₹)\s*([\d,]+(?:\.\d+)?)", re.IGNORECASE)
 _NUMBER_RE = re.compile(r"[\d,]+(?:\.\d+)?")
 
 
 def _extract_number(text: str) -> float | None:
-    match = _NUMBER_RE.search(text)
-    return float(match.group().replace(",", "")) if match else None
+    """Prefer a number immediately after Rs./₹ (the price marker
+    build_system_prompt always uses, e.g. "Rs.899") over the first number
+    anywhere in the text - a naive first-number-anywhere search grabs
+    incidental digits that appear earlier, like a capacity ("1L"), a size
+    ("10-inch"), or a product id ("prod_008") mentioned before the actual
+    price. Found via a real sampler run: 3/8 products misparsed this way
+    (749->1, 1899->10, 599->8) - see BUGS.md."""
+    match = _PRICE_RE.search(text)
+    if match:
+        raw = match.group(1)
+    else:
+        fallback = _NUMBER_RE.search(text)
+        raw = fallback.group() if fallback else None
+    return float(raw.replace(",", "")) if raw else None
 
 
 def check_numeric(question: str, product_id: str, expected_price: float, actual_text: str) -> DriftCheckResult:
@@ -75,12 +89,22 @@ def check_numeric(question: str, product_id: str, expected_price: float, actual_
     )
 
 
-async def check_faithfulness(question: str, policy_id: str, claim: str, response: str) -> DriftCheckResult:
+async def check_faithfulness(question: str, policy_id: str, claim: str, response: str, context_claims: list[str] | None = None) -> DriftCheckResult:
     """RAGAS Faithfulness: decomposes `response` into claims, checks each
-    against `claim` (the ground-truth policy text) as retrieved context."""
+    against retrieved context. context_claims defaults to [claim] alone,
+    but a caller asking one broad question that naturally covers several
+    claims (e.g. "what is your refund policy?") MUST pass every claim
+    under that topic, not just the one being tracked - otherwise RAGAS
+    finds no support for the OTHER real claims in the response (since
+    they're true but outside the narrow context given) and the score
+    craters to roughly 1/n_claims regardless of actual correctness.
+    Found via a real sampler run: 14/14 faithfulness checks false-flagged
+    this way, scores landing exactly on 1/n patterns - see BUGS.md.
+    `claim` (the specific tracked claim) still becomes `expected`."""
+    contexts = context_claims if context_claims else [claim]
     try:
         scorer = Faithfulness(llm=llm_factory(DEFAULT_MODEL, client=_judge_client()))
-        result = await scorer.ascore(user_input=question, response=response, retrieved_contexts=[claim])
+        result = await scorer.ascore(user_input=question, response=response, retrieved_contexts=contexts)
         score = result.value
     except Exception:
         return DriftCheckResult(
