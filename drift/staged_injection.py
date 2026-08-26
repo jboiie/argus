@@ -92,14 +92,20 @@ async def verify():
 
     if os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
         import uuid
-        from telemetry.supabase_client import create_run, end_run, get_client, log_drift_incident
+        from telemetry.supabase_client import create_run, end_run, get_client, log_drift_incident, log_session_turn
 
         supabase = get_client()
         run_id = create_run(supabase, run_type="drift_sample", label="step19_staged_drift_injection",
                              notes=f"{PRODUCT_ID} price changed {original_price} -> {NEW_PRICE}, staged for step 19")
-        log_drift_incident(supabase, stale_result, run_id, str(uuid.uuid4()))
+        session_id = str(uuid.uuid4())
+        log_drift_incident(supabase, stale_result, run_id, session_id)
+        # session_type=demo - DataModel.md's own designated marker for a
+        # deliberately staged session, pulled by a plain filter for the
+        # video instead of remembering which run happened to be the staged one.
+        log_session_turn(supabase, session_id, run_id, "demo", 0, "user", question)
+        log_session_turn(supabase, session_id, run_id, "demo", 1, "agent", stale_answer)
         end_run(supabase, run_id)
-        print(f"\nLogged the stale incident to Supabase under run_id={run_id}")
+        print(f"\nLogged the stale incident + demo session to Supabase under run_id={run_id}")
 
     print(f"\nReverting catalog.json: {PRODUCT_ID} {NEW_PRICE} -> {original_price} (resync)")
     _set_price(PRODUCT_ID, original_price)

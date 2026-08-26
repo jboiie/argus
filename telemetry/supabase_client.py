@@ -78,6 +78,30 @@ def log_drift_incident(client: Client, result, run_id: str, session_id: str) -> 
     client.table("drift_incidents").insert(row).execute()
 
 
+def log_session_turn(client: Client, session_id: str, run_id: str, session_type: str, turn_index: int, role: str, content: str, mandate_id: str | None = None) -> None:
+    """Full transcript persistence - DataModel.md's Session/Conversation
+    Turn entity. Without this, an incident row is a bare question/answer
+    pair with no way to see the actual exchange that produced it - the
+    audit-trail requirement (step 20, Section 4.5) this satisfies."""
+    row = {
+        "session_id": session_id,
+        "run_id": run_id,
+        "session_type": session_type,
+        "turn_index": turn_index,
+        "role": role,
+        "content": content,
+        "mandate_id": mandate_id,
+    }
+    client.table("session_turns").insert(row).execute()
+
+
+def mark_drift_incident_reviewed(client: Client, incident_id: str, is_false_positive: bool) -> None:
+    client.table("drift_incidents").update({
+        "reviewed_at": datetime.now(timezone.utc).isoformat(),
+        "is_false_positive": is_false_positive,
+    }).eq("incident_id", incident_id).execute()
+
+
 def log_mandate(client: Client, mandate) -> None:
     """mandate is an agent.mandate.Mandate instance."""
     row = {

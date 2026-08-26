@@ -40,14 +40,18 @@ def _faithfulness_question(topic: str) -> str:
     return f"What is your {topic} policy?"
 
 
-async def run_session(session_id: str) -> list[DriftCheckResult]:
+async def run_session(session_id: str) -> list[tuple[DriftCheckResult, list[str]]]:
+    """Returns each result paired with the RAW agent text(s) that produced
+    it - not r.actual, which for a numeric check is the parsed number, not
+    what the agent actually said. Needed separately so the audit trail
+    (session_turns) shows the real conversation, not our extraction of it."""
     products, policies = load_ground_truth()
-    results: list[DriftCheckResult] = []
+    results: list[tuple[DriftCheckResult, list[str]]] = []
 
     for product in products:
         question = _numeric_question(product)
         answer = await ask_async(question)
-        results.append(check_numeric(question, product["id"], product["price"], answer))
+        results.append((check_numeric(question, product["id"], product["price"], answer), [answer]))
 
     topics: dict[str, list[dict]] = {}
     for policy in policies:
@@ -64,21 +68,24 @@ async def run_session(session_id: str) -> list[DriftCheckResult]:
         # other real claims it also (correctly) mentions. See BUGS.md.
         context = [c["claim"] for c in claims]
         for claim in claims:
-            results.append(await check_faithfulness(question, claim["id"], claim["claim"], answer, context_claims=context))
+            result = await check_faithfulness(question, claim["id"], claim["claim"], answer, context_claims=context)
+            results.append((result, [answer]))
 
     for question, ref in UNCOVERED_QUESTIONS:
-        results.append(await check_self_consistency(question, ref))
+        result = await check_self_consistency(question, ref)
+        results.append((result, result.sampled_responses or []))
 
     return results
 
 
 async def run_and_log(run_id: str, supabase) -> list[DriftCheckResult]:
-    from telemetry.supabase_client import log_drift_incident
+    from telemetry.supabase_client import log_drift_incident, log_session_turn
 
     session_id = str(uuid.uuid4())
-    results = await run_session(session_id)
+    pairs = await run_session(session_id)
     if supabase:
-        for r in results:
+        turn_index = 0
+        for r, raw_answers in pairs:
             try:
                 log_drift_incident(supabase, r, run_id, session_id)
             except Exception as exc:
@@ -86,7 +93,16 @@ async def run_and_log(run_id: str, supabase) -> list[DriftCheckResult]:
                 # other successfully-computed result in the batch - matches
                 # ignore_errors elsewhere in this repo (redteam/).
                 print(f"  (failed to log {r.check_type}/{r.ground_truth_ref}: {exc})")
-    return results
+
+            try:
+                log_session_turn(supabase, session_id, run_id, "drift_sampler", turn_index, "user", r.question)
+                turn_index += 1
+                for content in raw_answers:
+                    log_session_turn(supabase, session_id, run_id, "drift_sampler", turn_index, "agent", content)
+                    turn_index += 1
+            except Exception as exc:
+                print(f"  (failed to log session turn: {exc})")
+    return [r for r, _ in pairs]
 
 
 def _summarize(results: list[DriftCheckResult]) -> None:
