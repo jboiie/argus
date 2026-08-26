@@ -12,7 +12,7 @@ import time
 
 from deepeval.models.base_model import DeepEvalBaseLLM
 from dotenv import load_dotenv
-from openai import AsyncOpenAI, OpenAI, RateLimitError
+from openai import AsyncOpenAI, BadRequestError, OpenAI, RateLimitError
 from pydantic import BaseModel
 
 load_dotenv()
@@ -70,6 +70,23 @@ def _to_strict_schema(model: type[BaseModel]) -> dict:
 
 _RETRY_AFTER_RE = re.compile(r"try again in ([\d.]+)s", re.IGNORECASE)
 MAX_RETRIES = 2
+
+
+def _is_empty_generation(exc: BadRequestError) -> bool:
+    """True for the transient case: Groq's strict-schema mode occasionally
+    returns 400 json_validate_failed with a genuinely EMPTY completion
+    (confirmed by replaying the identical prompt raw - it succeeded fine,
+    same reasoning-token cost, well under the token budget - so this isn't
+    a schema/budget problem, it's a one-off flake worth retrying).
+
+    Deliberately narrower than "any json_validate_failed": a REAL refusal
+    also fails schema validation but leaves the refusal text in
+    failed_generation (see BUGS.md's DeepTeam judge-model saga) - that's a
+    genuine finding, not a glitch, and must surface as errored, not be
+    retried away.
+    """
+    body = exc.body if isinstance(exc.body, dict) else {}
+    return body.get("code") == "json_validate_failed" and not (body.get("failed_generation") or "").strip()
 
 
 def _retry_after_seconds(exc: RateLimitError, default: float = 30.0) -> float:
@@ -132,6 +149,9 @@ class GroqModel(DeepEvalBaseLLM):
                 if attempt == MAX_RETRIES:
                     raise
                 time.sleep(_retry_after_seconds(exc) + 1)
+            except BadRequestError as exc:
+                if attempt == MAX_RETRIES or not _is_empty_generation(exc):
+                    raise
         content = response.choices[0].message.content or ""
         return schema.model_validate_json(content) if schema else content
 
@@ -148,6 +168,9 @@ class GroqModel(DeepEvalBaseLLM):
                 if attempt == MAX_RETRIES:
                     raise
                 await asyncio.sleep(_retry_after_seconds(exc) + 1)
+            except BadRequestError as exc:
+                if attempt == MAX_RETRIES or not _is_empty_generation(exc):
+                    raise
         content = response.choices[0].message.content or ""
         return schema.model_validate_json(content) if schema else content
 
