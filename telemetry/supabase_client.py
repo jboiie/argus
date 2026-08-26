@@ -95,6 +95,21 @@ def log_session_turn(client: Client, session_id: str, run_id: str, session_type:
     client.table("session_turns").insert(row).execute()
 
 
+def fetch_unresolved_critical_refs(client: Client) -> set[str]:
+    """ground_truth_refs with an unresolved critical drift incident -
+    DataModel.md's Drift Incident entity, graceful-degradation behavior
+    rule. severity is only ever set when flagged=true (see
+    log_drift_incident), so severity='critical' already implies flagged."""
+    resp = (
+        client.table("drift_incidents")
+        .select("ground_truth_ref")
+        .eq("severity", "critical")
+        .is_("reviewed_at", "null")
+        .execute()
+    )
+    return {row["ground_truth_ref"] for row in resp.data if row["ground_truth_ref"]}
+
+
 def mark_drift_incident_reviewed(client: Client, incident_id: str, is_false_positive: bool) -> None:
     client.table("drift_incidents").update({
         "reviewed_at": datetime.now(timezone.utc).isoformat(),

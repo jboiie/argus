@@ -34,6 +34,12 @@ POLICIES:
 
 ACTIVE DISCOUNT CODES:
 {coupons}
+{unresolved}"""
+
+UNRESOLVED_NOTE_TEMPLATE = """
+UNDER VERIFICATION - a possible data issue was flagged for these and hasn't been confirmed yet:
+{items}
+Do not state or confirm a current price or policy claim for these. Tell the customer that figure is being verified and to check back or contact support instead.
 """
 
 
@@ -43,7 +49,9 @@ def load_ground_truth() -> tuple[list[dict], list[dict]]:
     return products, policies
 
 
-def build_system_prompt(products: list[dict], policies: list[dict], coupons: list[dict]) -> str:
+def build_system_prompt(
+    products: list[dict], policies: list[dict], coupons: list[dict], blocked_refs: set[str] = frozenset()
+) -> str:
     product_lines = "\n".join(
         f"- {p['name']} (id: {p['id']}): Rs.{p['price']} — {p['description']}"
         for p in products
@@ -54,14 +62,26 @@ def build_system_prompt(products: list[dict], policies: list[dict], coupons: lis
         f"- {c['code']}: {c['discount_value']}{'%' if c['discount_type'] == 'percent' else ' rupees'} off"
         for c in active_coupons
     ) or "(none currently active)"
-    return SYSTEM_PROMPT_TEMPLATE.format(products=product_lines, policies=policy_lines, coupons=coupon_lines)
+
+    unresolved = ""
+    if blocked_refs:
+        flagged_names = [p["name"] for p in products if p["id"] in blocked_refs]
+        flagged_names += [f"[{p['topic']}] {p['claim']}" for p in policies if p["id"] in blocked_refs]
+        if flagged_names:
+            item_lines = "\n".join(f"- {n}" for n in flagged_names)
+            unresolved = UNRESOLVED_NOTE_TEMPLATE.format(items=item_lines)
+
+    return SYSTEM_PROMPT_TEMPLATE.format(
+        products=product_lines, policies=policy_lines, coupons=coupon_lines, unresolved=unresolved
+    )
 
 
 def ask(question: str) -> str:
     from agent.cart import load_coupons
+    from agent.drift_guard import unresolved_critical_refs
 
     products, policies = load_ground_truth()
-    system_prompt = build_system_prompt(products, policies, load_coupons())
+    system_prompt = build_system_prompt(products, policies, load_coupons(), unresolved_critical_refs())
 
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     response = client.models.generate_content(
@@ -93,9 +113,10 @@ async def ask_async(question: str) -> str:
     sampler (steps 17-18), which needs concurrent/repeated sampling and
     therefore the same 429 retry as ask_with_tools."""
     from agent.cart import load_coupons
+    from agent.drift_guard import unresolved_critical_refs
 
     products, policies = load_ground_truth()
-    system_prompt = build_system_prompt(products, policies, load_coupons())
+    system_prompt = build_system_prompt(products, policies, load_coupons(), unresolved_critical_refs())
 
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     response = await _generate_with_retry(
@@ -182,6 +203,7 @@ async def ask_with_tools(
     message like "2 beanies with code WELCOME10" plausibly calls
     add_to_cart and apply_coupon together."""
     from agent.cart import load_coupons
+    from agent.drift_guard import unresolved_critical_refs
     from agent.tools import (
         add_to_cart_declaration,
         apply_coupon_declaration,
@@ -190,7 +212,8 @@ async def ask_with_tools(
     )
 
     products, policies = load_ground_truth()
-    system_prompt = build_system_prompt(products, policies, load_coupons()) + TOOL_SYSTEM_ADDENDUM
+    blocked_refs = unresolved_critical_refs()
+    system_prompt = build_system_prompt(products, policies, load_coupons(), blocked_refs) + TOOL_SYSTEM_ADDENDUM
 
     history = _SESSION_HISTORY.setdefault(session_id, [])
     history.append(types.Content(role="user", parts=[types.Part(text=question)]))
@@ -217,6 +240,7 @@ async def ask_with_tools(
             session_id=session_id,
             user_confirmed=_has_genuine_confirmation(history),
             is_live_demo=is_live_demo,
+            blocked_refs=blocked_refs,
         )
         history.append(types.Content(role="user", parts=[types.Part.from_function_response(name=fc.name, response=tool_result)]))
 
@@ -238,6 +262,11 @@ def demo():
     assert products[0]["name"] in prompt
     assert policies[0]["claim"] in prompt
     assert any(c["code"] in prompt for c in coupons if c["active"])
+    assert "UNDER VERIFICATION" not in prompt
+
+    blocked_prompt = build_system_prompt(products, policies, coupons, {products[0]["id"]})
+    assert "UNDER VERIFICATION" in blocked_prompt
+    assert products[0]["name"] in blocked_prompt.split("UNDER VERIFICATION")[1]
 
     if os.environ.get("GEMINI_API_KEY"):
         answer = ask("What is the refund window?")
@@ -245,6 +274,31 @@ def demo():
         print("A:", answer)
     else:
         print("GEMINI_API_KEY not set — skipping live call. Ground truth loading/prompt building OK.")
+
+
+async def demo_drift_guard_block():
+    """Deterministic check (no Gemini needed) that a Mandate touching an
+    unresolved-critical product_id is held, never authorized - the
+    graceful-degradation gate's hard boundary (agent/tools.py's
+    execute_tool_call, not just the system-prompt note)."""
+    from agent.cart import add_item, clear_cart
+    from agent.mandate import _MANDATES
+    from agent.tools import execute_tool_call
+
+    session_id = "drift_guard_demo_session"
+    clear_cart(session_id)
+    add_item(session_id, "prod_001", 1)
+    before = len(_MANDATES)
+
+    result = await execute_tool_call(
+        "create_payment_link", {}, run_id="run_dev_demo", session_id=session_id,
+        user_confirmed=True, blocked_refs=frozenset({"prod_001"}),
+    )
+    assert result.get("blocked") is True
+    assert result.get("reason") == "unresolved_critical_drift"
+    assert len(_MANDATES) == before, "a blocked mandate must never be created"
+    clear_cart(session_id)
+    print("drift_guard block: OK -", result)
 
 
 async def demo_tools():
@@ -281,4 +335,5 @@ if __name__ == "__main__":
     import asyncio
 
     demo()
+    asyncio.run(demo_drift_guard_block())
     asyncio.run(demo_tools())

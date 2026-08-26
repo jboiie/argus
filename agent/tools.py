@@ -72,8 +72,15 @@ async def execute_tool_call(
     session_id: str,
     user_confirmed: bool,
     is_live_demo: bool = False,
+    blocked_refs: frozenset = frozenset(),
 ) -> dict:
-    """Dispatch a Gemini-requested tool call. Money-moving tools go through the mandate gate first."""
+    """Dispatch a Gemini-requested tool call. Money-moving tools go through the mandate gate first.
+
+    blocked_refs: product_ids with an unresolved critical drift incident
+    (agent/drift_guard.py, PROJECT_DESC.md Section 4.4's graceful-degradation
+    behavior) - a Mandate touching one is held, never authorized, so a
+    possibly-wrong price never reaches a real payment link.
+    """
     if name == "add_to_cart":
         return cart.add_item(session_id, args.get("product_id"), args.get("quantity", 1))
 
@@ -87,6 +94,10 @@ async def execute_tool_call(
     totals = cart.compute_total(session_id)
     if not totals["items"]:
         return {"blocked": True, "reason": "empty_cart"}
+
+    unresolved = {item["product_id"] for item in totals["items"]} & blocked_refs
+    if unresolved:
+        return {"blocked": True, "reason": "unresolved_critical_drift", "refs": sorted(unresolved)}
 
     mandate = create_mandate(
         run_id=run_id,
