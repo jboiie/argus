@@ -125,11 +125,11 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 20. [x] Flag + log incidents to Supabase with full audit trail; false-positive cost metric. Audit trail: `telemetry/supabase_client.py::log_session_turn()` now logs the real user/agent exchange behind every drift check into `session_turns` (a real pre-existing gap — the schema anticipated `session_type='drift_sampler'` but nothing wrote to it until now; caught and fixed a bug in the same pass where it logged the parsed number instead of the agent's actual words, see BUGS.md). Cost metric: `drift/audit.py::compute_false_positive_cost()` — a simple, explicitly-stated review-cost model (documented in README, not tuned/sophisticated per Section 4.4's own bar).
 
 **Dashboard**
-21. Streamlit skeleton, static data first.
-22. Wire tab 1 to red-team results (ASR by category/ASI code).
-23. Wire tab 2 to drift feed (incidents over time).
-24. Audit trail detail view per incident.
-25. Deploy to Streamlit Cloud; verify the public link loads with live data.
+21. [x] Streamlit skeleton, static data first. `dashboard/app.py` — old Aegis-shaped version fully rewritten (was querying a table/schema that doesn't exist in Argus at all, not adaptable). Two tabs, `st.set_page_config`, read-only via anon key.
+22. [x] Wire tab 1 to red-team results (ASR by category/ASI code). `dashboard/data.py::compute_asr_by_category()` — same aggregation as `redteam/scoring.py::compute_asr`, off logged `attack_events` rows. Live-verified: 165 real rows, 55 category groups.
+23. [x] Wire tab 2 to drift feed (incidents over time). `drift_incidents_over_time()` + `drift_cause_breakdown()` + the false-positive cost metric (`drift/audit.py`). Live-verified: 128 real rows.
+24. [x] Audit trail detail view per incident. Both tabs let you pick an `attack_id`/`incident_id` and see full detail plus the linked `session_turns` conversation (closes the loop from step 20's audit-trail logging).
+25. [~] Deploy to Streamlit Cloud; verify the public link loads with live data. **Code is ready and locally verified** (`streamlit run dashboard/app.py` boots clean, all data functions confirmed against live Supabase with zero errors) — the actual deploy click-through needs your Streamlit Cloud account, not something achievable without browser/account access. See README's new "Deploying the dashboard" section for the exact steps (repo must go public first).
 26. Set up the Streamlit + Supabase keep-alive GitHub Actions (Section 5) — leave running.
 
 **Submission Prep**

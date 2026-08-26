@@ -38,7 +38,17 @@ conda run --no-capture-output -n argus python -m drift.sampler        # full dri
 conda run --no-capture-output -n argus python -m drift.staged_injection inject  # step 19 demo, phase 1 (commit catalog.json between phases)
 conda run --no-capture-output -n argus python -m drift.staged_injection verify  # step 19 demo, phase 2
 conda run --no-capture-output -n argus python -m drift.audit          # false-positive cost metric self-check (no live API needed)
+
+streamlit run dashboard/app.py  # local dashboard - needs SUPABASE_URL/SUPABASE_ANON_KEY in .env (read-only, anon key only)
 ```
+
+### Deploying the dashboard (Streamlit Cloud)
+
+1. Go to [share.streamlit.io](https://share.streamlit.io), sign in, "New app".
+2. Connect this GitHub repo (must be public first — flip visibility before this step), branch `master`, main file path `dashboard/app.py`.
+3. In the app's Settings → Secrets, paste `.streamlit/secrets.toml.example`'s content with real values — **`SUPABASE_ANON_KEY` only, never `service_role`** (the dashboard has no write path, so `service_role` there would be a needless privilege escalation if it ever leaked).
+4. Deploy. Verify the public URL actually loads live data, not just the static shell.
+5. Streamlit Community Cloud apps sleep after 12 hours of no visitor traffic, and a plain `requests.get` does not wake them (it's served a static shell). Step 26 sets up a real-browser keep-alive for this.
 
 ## Design Decisions
 
