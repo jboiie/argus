@@ -8,47 +8,50 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 
 Reference agent, pre-deployment red-team harness, post-deployment drift sentinel, and dashboard all built and verified live (PROJECT_DESC.md build steps 1-24; step 25's code is ready and locally verified, actual Streamlit Cloud deployment pending). See `BUGS.md` for what broke and how it was fixed along the way.
 
-## Components
+## Architecture
 
-- **Reference Commerce Agent** (`agent/`) — chat checkout agent over `catalog.json`/`policies.json`, Gemini 3.5 Flash-Lite (Groq also available, see Design Decisions below), MCP client against Razorpay's remote MCP server, bounded multi-turn memory, mandate/authorization layer gating `create_payment_link` behind a deterministic transcript-based confirmation check.
-- **Pre-Deployment Engine** (`redteam/`) — DeepTeam-based red-team harness: `OWASP_ASI_2026` framework plus 4 commerce-specific custom vulnerabilities (price manipulation, fake discount codes, unauthorized refunds, catalog-field prompt injection, mandate bypass), each ASI-labeled. Attack Success Rate scored per category (`redteam/scoring.py`), logged to Supabase (`telemetry/supabase_client.py`).
-- **Post-Deployment Engine** (`drift/`) — drift sentinel comparing agent responses against ground-truth catalog/policy data: exact match for numeric fields (`drift/diff.py`), RAGAS Faithfulness for policy text, self-consistency sampling for claims not covered by ground truth (`drift/self_consistency.py`). `drift/sampler.py` runs a full pass (25 checks) across products/policies/uncovered questions per session; `drift/classify.py` labels each flagged incident with a cause (`stale_ground_truth`/`fabrication`/`inconsistency`) and severity (`critical`/`moderate`); `drift/audit.py` computes the false-positive review cost (see Design Decisions). `drift/staged_injection.py` is the deliberately-staged demo (step 19).
-- **Dashboard** (`dashboard/`) — Streamlit app, two tabs: pre-deployment ASR report by ASI category, and a live drift feed (incidents over time, cause breakdown, false-positive cost). Both tabs have an audit-trail detail view pulling the full logged conversation behind any selected incident. Read-only — anon key only, see Setup.
+Everything grounds out in two flat JSON files — `catalog.json` and `policies.json` — the single source of truth every other piece is checked against.
 
-## Setup
-
-```bash
-conda create -n argus python=3.11 -y
-conda run -n argus pip install -r requirements.txt
-
-cp .env.example .env
-# fill in .env: Groq, Gemini, Razorpay test-mode, Supabase keys
+```
+catalog.json / policies.json  (ground truth)
+        │
+        ▼
+agent/  ── Reference Commerce Agent ──────────────────────
+  Gemini 3.5 Flash-Lite, MCP client against Razorpay's remote
+  server, bounded multi-turn memory, a mandate/authorization
+  layer gating create_payment_link behind a deterministic
+  transcript-based confirmation check (not the model's own
+  self-report — that's the actual thing an attack has to defeat).
+        │                                    ▲
+        │ attacked by                        │ sampled by
+        ▼                                    │
+redteam/  ── Pre-Deployment Engine        drift/  ── Post-Deployment Engine
+  DeepTeam + OWASP_ASI_2026 (all 10          Numeric exact-match, RAGAS
+  categories) + 4 commerce-specific          Faithfulness for policy text,
+  custom vulnerabilities, ASI-labeled,       self-consistency sampling for
+  Attack Success Rate scored per             claims outside ground truth.
+  category.                                  Flagged incidents get a
+                                              drift_cause (stale ground
+                                              truth / fabrication /
+                                              inconsistency) and severity.
+        │                                    │
+        └──────────────┬─────────────────────┘
+                        ▼
+              Supabase (Postgres + RLS)
+        runs / attack_events / drift_incidents /
+        mandates / session_turns — full audit trail,
+        anon key is SELECT-only, service_role never
+        leaves the backend scripts
+                        │
+                        ▼
+              dashboard/  ── Streamlit, read-only
+        Tab 1: ASR by ASI category. Tab 2: drift feed,
+        cause breakdown, false-positive cost. Both tabs
+        drill into the logged conversation behind any
+        selected incident.
 ```
 
-Run `scripts/setup_supabase.sql` once in your Supabase project's SQL editor (Dashboard → SQL Editor → paste → Run) before any Supabase logging will work — this repo has no direct Postgres connection to run it for you.
-
-Run any script with `conda run --no-capture-output -n argus python -m <module>` (the `--no-capture-output` flag matters on Windows — plain `conda run` buffers stdout and can crash re-printing it through the wrong codepage on non-ASCII output).
-
-```bash
-conda run --no-capture-output -n argus python -m agent.smoke_test     # reference agent smoke test
-conda run --no-capture-output -n argus python -m redteam.run_asi      # small-scale OWASP_ASI_2026 wiring test
-conda run --no-capture-output -n argus python -m redteam.run_custom   # small-scale commerce-vulnerability wiring test
-conda run --no-capture-output -n argus python -m redteam.scoring      # ASR scoring self-check (no live API needed)
-conda run --no-capture-output -n argus python -m drift.sampler        # full drift sampling pass (25 checks: numeric/faithfulness/self-consistency)
-conda run --no-capture-output -n argus python -m drift.staged_injection inject  # step 19 demo, phase 1 (commit catalog.json between phases)
-conda run --no-capture-output -n argus python -m drift.staged_injection verify  # step 19 demo, phase 2
-conda run --no-capture-output -n argus python -m drift.audit          # false-positive cost metric self-check (no live API needed)
-
-streamlit run dashboard/app.py  # local dashboard - needs SUPABASE_URL/SUPABASE_ANON_KEY in .env (read-only, anon key only)
-```
-
-### Deploying the dashboard (Streamlit Cloud)
-
-1. Go to [share.streamlit.io](https://share.streamlit.io), sign in, "New app".
-2. Connect this GitHub repo (must be public first — flip visibility before this step), branch `master`, main file path `dashboard/app.py`.
-3. In the app's Settings → Secrets, paste `.streamlit/secrets.toml.example`'s content with real values — **`SUPABASE_ANON_KEY` only, never `service_role`** (the dashboard has no write path, so `service_role` there would be a needless privilege escalation if it ever leaked).
-4. Deploy. Verify the public URL actually loads live data, not just the static shell.
-5. Streamlit Community Cloud apps sleep after 12 hours of no visitor traffic, and a plain `requests.get` does not wake them (it's served a static shell). Step 26 sets up a real-browser keep-alive for this.
+The mandate layer is the one piece that ties the two engines together: it's the concrete thing Track 01's "every money action explainable, bounded and gated" bar demands, and it's also the specific surface the red-team harness's `mandate_bypass` custom vulnerability targets — the same gate gets tested from both directions.
 
 ## Design Decisions
 
@@ -57,6 +60,8 @@ streamlit run dashboard/app.py  # local dashboard - needs SUPABASE_URL/SUPABASE_
 **False-positive cost model (drift sentinel).** `drift/audit.py` assumes reviewing one flagged incident costs `1` unit, and states — as an explicit, undemonstrated assumption, not a measured one — that a real drift reaching a user *undetected* costs several times more (`MISSED_DRIFT_ASSUMED_MULTIPLE = 5`). There's no ground truth on what should have been flagged but wasn't, so this can't be measured directly; it's the stated reasoning behind why `drift/diff.py`'s `FAITHFULNESS_THRESHOLD` and `drift/self_consistency.py`'s `AGREEMENT_THRESHOLD` both lean toward over-flagging rather than under-flagging. What the metric *does* measure directly: of all flagged incidents that get human-reviewed, how many turn out to be false alarms (`drift/audit.py::compute_false_positive_cost`).
 
 **Rule-based vs. LLM-judged, and why (Section 5's "AI Judgment" axis).** Numeric price checks (`drift/diff.py::check_numeric`) are plain equality comparison — deliberately not an LLM call, since a price either matches or it doesn't. `drift_cause`/`severity` classification (`drift/classify.py`) are also rule-based: severity is a lookup against a fixed money-relevant policy-topic set, and `drift_cause` is a git-history lookup, not a judgment call. RAGAS Faithfulness (policy text) and self-consistency scoring (claims with no ground truth) are the two genuinely LLM-judged checks — both are fuzzy-by-nature (does free text match free text; do N independent answers agree), which is exactly the kind of judgment a rule can't make.
+
+**Reproducing the numbers.** `redteam/run_full.py` runs the full pre-deployment pass (all 61 OWASP_ASI_2026 vulnerability types + 4 custom ones) and logs Attack Success Rate per category to Supabase. `drift/sampler.py` runs a full post-deployment pass (25 checks across products, policy topics, and uncovered questions). `drift/staged_injection.py` (`inject` then `verify`, with a real git commit of the ground-truth edit in between) reproduces the step 19 staged-drift demo specifically. Every module also has a `demo()`/`__main__` self-check runnable on its own — see the module docstrings.
 
 ## License
 
