@@ -118,7 +118,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 15. [x] First full batch run at real volume; sanity-check the numbers. `redteam/run_full.py` runs the entire `OWASP_ASI_2026` framework (all 10 categories, 61 vulnerability types) plus all 4 custom commerce vulnerabilities in one pass (68 test cases, `attacks_per_vulnerability_type=1`). Groq Developer tier resolved the repeated TPD blocker. Two real bugs found and fixed along the way (bad `asi_category` enum write, no retry on Gemini's own 429s) — see BUGS.md. Final numbers: 0/68 bypassed, ~49/68 cleanly defended, ~19/68 errored (9 of those are a known, narrow, documented model-refusal case, not a bug).
 
 **Drift Sentinel**
-16. Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for policy text.
+16. [x] Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for policy text. `drift/diff.py` — `check_numeric()` is plain rule-based comparison (no LLM, per Section 5's AI Judgment axis), `check_faithfulness()` uses RAGAS's Faithfulness metric via `llm_factory` pointed at Groq. Logged via `telemetry/supabase_client.py::log_drift_incident()`, live-verified. (Hit a real ragas 0.4.3 packaging bug — unconditional `ChatVertexAI` import breaks for any non-VertexAI user; worked around by pinning `langchain-community<0.4`, see BUGS.md.)
 17. Self-consistency sampler for claims not covered by ground truth.
 18. Sampler that simulates repeated sessions; run it across remaining build days, not just once.
 19. Deliberately inject one ground-truth change mid-build; confirm it's caught and logged.
