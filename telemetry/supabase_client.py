@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
+from drift.classify import classify_drift_cause, classify_severity
 from redteam.scoring import outcome
 
 load_dotenv()
@@ -56,9 +57,8 @@ def log_attack_event(client: Client, tc, run_id: str, session_id: str, mandate_i
 
 def log_drift_incident(client: Client, result, run_id: str, session_id: str) -> None:
     """result is a drift.diff.DriftCheckResult. drift_cause/severity are
-    intentionally left unset here - classifying them needs a real incident
-    plus prior ground-truth values to compare against (see DataModel.md's
-    Drift Incident entity), not something this build step computes yet."""
+    computed here (not on DriftCheckResult itself) via drift.classify -
+    both are null when the check wasn't flagged, nothing to classify."""
     row = {
         "run_id": run_id,
         "check_type": result.check_type,
@@ -67,9 +67,12 @@ def log_drift_incident(client: Client, result, run_id: str, session_id: str) -> 
         "ground_truth_type": result.ground_truth_type,
         "expected": result.expected,
         "actual": result.actual,
+        "sampled_responses": result.sampled_responses,
         "score": result.score,
         "check_status": result.check_status,
         "flagged": result.flagged,
+        "drift_cause": classify_drift_cause(result) if result.flagged else None,
+        "severity": classify_severity(result.check_type, result.ground_truth_type, result.ground_truth_ref) if result.flagged else None,
         "session_id": session_id,
     }
     client.table("drift_incidents").insert(row).execute()

@@ -105,8 +105,8 @@ Fields matched against DeepTeam's actual test-case objects, not assumed.
 | `timestamp` | timestamptz | |
 | `check_type` | enum | `numeric` \| `faithfulness` \| `self_consistency` — validated at write time |
 | `question` | string | |
-| `ground_truth_ref` | string | `Product.id` or `Policy.id` — for traceability only |
-| `ground_truth_type` | enum | `product` \| `policy` — disambiguates which table `ground_truth_ref` points into (polymorphic FK, no real constraint possible without this) |
+| `ground_truth_ref` | string, nullable | `Product.id` or `Policy.id` — for traceability only. `null` for `self_consistency` rows (build step 17): those check claims not covered by ground truth in the first place, so no real id applies (see `migrate_002_self_consistency_nullable_refs.sql`) |
+| `ground_truth_type` | enum, nullable | `product` \| `policy` — disambiguates which table `ground_truth_ref` points into (polymorphic FK, no real constraint possible without this). `null` alongside `ground_truth_ref` for `self_consistency` rows, same reasoning |
 | `expected` | value, nullable | **snapshot of the ground-truth value at check-time, not a live lookup via `ground_truth_ref`.** A later catalog/policy edit must not retroactively change past rows — this is what keeps the deliberately-injected drift demo timeline honest. `null` for `self_consistency` rows (no external ground truth applies). |
 | `actual` | value | the agent's answer. For `self_consistency` rows: the majority answer across samples. |
 | `sampled_responses` | array, optional | populated only for `self_consistency` rows — the N sampled answers the majority/score were computed from |

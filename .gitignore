@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+.drift_injection_state.json
 
 graphify-out/*
 !graphify-out/GRAPH_REPORT.md
