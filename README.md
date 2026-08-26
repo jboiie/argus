@@ -18,10 +18,13 @@ catalog.json / policies.json  (ground truth)
         ▼
 agent/  ── Reference Commerce Agent ──────────────────────
   Gemini 3.5 Flash-Lite, MCP client against Razorpay's remote
-  server, bounded multi-turn memory, a mandate/authorization
-  layer gating create_payment_link behind a deterministic
-  transcript-based confirmation check (not the model's own
-  self-report — that's the actual thing an attack has to defeat).
+  server, bounded multi-turn memory, cart + coupon + multi-step
+  checkout (agent/cart.py — server-side, deterministic; the
+  model never states a trusted price or total), a mandate/
+  authorization layer gating create_payment_link behind a
+  deterministic transcript-based confirmation check (not the
+  model's own self-report — that's the actual thing an attack
+  has to defeat).
         │                                    ▲
         │ attacked by                        │ sampled by
         ▼                                    │
@@ -59,7 +62,7 @@ The mandate layer is the one piece that ties the two engines together: it's the 
 
 **False-positive cost model (drift sentinel).** `drift/audit.py` assumes reviewing one flagged incident costs `1` unit, and states — as an explicit, undemonstrated assumption, not a measured one — that a real drift reaching a user *undetected* costs several times more (`MISSED_DRIFT_ASSUMED_MULTIPLE = 5`). There's no ground truth on what should have been flagged but wasn't, so this can't be measured directly; it's the stated reasoning behind why `drift/diff.py`'s `FAITHFULNESS_THRESHOLD` and `drift/self_consistency.py`'s `AGREEMENT_THRESHOLD` both lean toward over-flagging rather than under-flagging. What the metric *does* measure directly: of all flagged incidents that get human-reviewed, how many turn out to be false alarms (`drift/audit.py::compute_false_positive_cost`).
 
-**Rule-based vs. LLM-judged, and why (Section 5's "AI Judgment" axis).** Numeric price checks (`drift/diff.py::check_numeric`) are plain equality comparison — deliberately not an LLM call, since a price either matches or it doesn't. `drift_cause`/`severity` classification (`drift/classify.py`) are also rule-based: severity is a lookup against a fixed money-relevant policy-topic set, and `drift_cause` is a git-history lookup, not a judgment call. RAGAS Faithfulness (policy text) and self-consistency scoring (claims with no ground truth) are the two genuinely LLM-judged checks — both are fuzzy-by-nature (does free text match free text; do N independent answers agree), which is exactly the kind of judgment a rule can't make.
+**Rule-based vs. LLM-judged, and why (Section 5's "AI Judgment" axis).** Numeric price checks (`drift/diff.py::check_numeric`) are plain equality comparison — deliberately not an LLM call, since a price either matches or it doesn't. `drift_cause`/`severity` classification (`drift/classify.py`) are also rule-based: severity is a lookup against a fixed money-relevant policy-topic set, and `drift_cause` is a git-history lookup, not a judgment call. Cart totals (`agent/cart.py::compute_total`) are the same principle applied to the reference agent itself — checkout math is arithmetic against real catalog prices and a validated coupon, and the model never gets to state a trusted number for a money-moving action. RAGAS Faithfulness (policy text) and self-consistency scoring (claims with no ground truth) are the two genuinely LLM-judged checks — both are fuzzy-by-nature (does free text match free text; do N independent answers agree), which is exactly the kind of judgment a rule can't make.
 
 **Reproducing the numbers.** `redteam/run_full.py` runs the full pre-deployment pass (all 61 OWASP_ASI_2026 vulnerability types + 4 custom ones) and logs Attack Success Rate per category to Supabase. `drift/sampler.py` runs a full post-deployment pass (25 checks across products, policy topics, and uncovered questions). `drift/staged_injection.py` (`inject` then `verify`, with a real git commit of the ground-truth edit in between) reproduces the step 19 staged-drift demo specifically. Every module also has a `demo()`/`__main__` self-check runnable on its own — see the module docstrings.
 
