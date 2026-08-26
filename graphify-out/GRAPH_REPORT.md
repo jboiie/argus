@@ -1,16 +1,16 @@
 # Graph Report - argus  (2026-08-26)
 
 ## Corpus Check
-- 40 files · ~28,992 words
+- 42 files · ~30,004 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 212 nodes · 285 edges · 22 communities (17 shown, 5 thin omitted)
+- 227 nodes · 308 edges · 24 communities (19 shown, 5 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 14 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `baa5ba83`
+- Built from commit: `437dd799`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -31,6 +31,7 @@
 - GroqModel
 - reference_agent.py
 - razorpay_mcp.py
+- diff.py
 - mandate.py
 - Argus — Agent QA & Monitoring Suite for Agentic Commerce
 - Bugs & Fixes
@@ -50,6 +51,8 @@
 10. `compute_asr()` - 9 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `demo()` --calls--> `check_numeric()`  [EXTRACTED]
+  telemetry/supabase_client.py → drift/diff.py
 - `main()` --calls--> `create_run()`  [INFERRED]
   redteam/run_asi.py → telemetry/supabase_client.py
 - `main()` --calls--> `end_run()`  [INFERRED]
@@ -58,13 +61,11 @@
   redteam/run_asi.py → telemetry/supabase_client.py
 - `main()` --calls--> `log_attack_event()`  [INFERRED]
   redteam/run_asi.py → telemetry/supabase_client.py
-- `main()` --calls--> `create_run()`  [INFERRED]
-  redteam/run_custom.py → telemetry/supabase_client.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (22 total, 5 thin omitted)
+## Communities (24 total, 5 thin omitted)
 
 ### Community 0 - "/graphify"
 Cohesion: 0.17
@@ -103,8 +104,8 @@ Cohesion: 0.11
 Nodes (17): 0. Before You Write Any Code, 1. Context & Stakes, 2. The One-Line Idea, 3. Why Now — Use These Specific Anchors in the Pitch, 4.1 Reference Commerce Agent (the target, not the differentiator), 4.2 Authorization / Mandate Layer (new — don't skip this), 4.3 Pre-Deployment Engine — Guardrail Red-Team Harness, 4.4 Post-Deployment Engine — Drift Sentinel (+9 more)
 
 ### Community 13 - "GroqModel"
-Cohesion: 0.13
-Nodes (14): BadRequestError, BaseModel, DeepEvalBaseLLM, RateLimitError, Commerce-specific vulnerabilities not covered by OWASP_ASI_2026's standard…, demo(), GroqModel, _is_empty_generation() (+6 more)
+Cohesion: 0.16
+Nodes (12): BadRequestError, BaseModel, DeepEvalBaseLLM, RateLimitError, demo(), GroqModel, _is_empty_generation(), Groq-backed judge/simulator model for DeepTeam - keeps attack generation and… (+4 more)
 
 ### Community 14 - "reference_agent.py"
 Cohesion: 0.25
@@ -113,6 +114,10 @@ Nodes (14): ask(), ask_with_tools(), build_system_prompt(), demo(), demo_tools()
 ### Community 15 - "razorpay_mcp.py"
 Cohesion: 0.43
 Nodes (6): _auth_header(), call_tool(), demo(), list_tools(), MCP client wiring against Razorpay's remote MCP server. Connects with the…, Read-only: returns the names of tools Razorpay's MCP server exposes.
+
+### Community 16 - "diff.py"
+Cohesion: 0.26
+Nodes (11): AsyncOpenAI, check_faithfulness(), check_numeric(), demo(), DriftCheckResult, _extract_number(), _judge_client(), Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for… (+3 more)
 
 ### Community 17 - "mandate.py"
 Cohesion: 0.24
@@ -123,8 +128,8 @@ Cohesion: 0.29
 Nodes (6): Argus — Agent QA & Monitoring Suite for Agentic Commerce, Components, Design Decisions, License, Setup, Status
 
 ### Community 21 - "main"
-Cohesion: 0.11
-Nodes (33): Client, demo(), make_model_callback(), Bridges DeepTeam's model_callback contract to the reference agent. DeepTeam…, Bind run_id via closure - keeps model_callback's exact (input, turns=None)…, _seed_session(), session_id_for(), main() (+25 more)
+Cohesion: 0.09
+Nodes (37): Client, Commerce-specific vulnerabilities not covered by OWASP_ASI_2026's standard…, demo(), make_model_callback(), Bridges DeepTeam's model_callback contract to the reference agent. DeepTeam…, Bind run_id via closure - keeps model_callback's exact (input, turns=None)…, _seed_session(), session_id_for() (+29 more)
 
 ### Community 22 - "Argus — Data Model"
 Cohesion: 0.18
@@ -139,11 +144,11 @@ Nodes (10): Argus — Data Model, Cross-cutting conventions, Currency convention
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `ask_with_tools()` connect `reference_agent.py` to `mandate.py`?**
-  _High betweenness centrality (0.050) - this node is a cross-community bridge._
+  _High betweenness centrality (0.053) - this node is a cross-community bridge._
 - **Why does `GroqModel` connect `GroqModel` to `main`?**
-  _High betweenness centrality (0.038) - this node is a cross-community bridge._
+  _High betweenness centrality (0.037) - this node is a cross-community bridge._
 - **Why does `_generate_with_retry()` connect `reference_agent.py` to `main`?**
-  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+  _High betweenness centrality (0.028) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `main()` (e.g. with `create_run()` and `end_run()`) actually correct?**
   _`main()` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 4 inferred relationships involving `main()` (e.g. with `create_run()` and `end_run()`) actually correct?**
