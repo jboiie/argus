@@ -76,6 +76,21 @@ async def _generate_with_retry(client: genai.Client, **kwargs):
             await asyncio.sleep(GEMINI_RETRY_SECONDS)
 
 
+async def ask_async(question: str) -> str:
+    """Async single-turn Q&A, same grounding as ask() - used by the drift
+    sampler (steps 17-18), which needs concurrent/repeated sampling and
+    therefore the same 429 retry as ask_with_tools."""
+    products, policies = load_ground_truth()
+    system_prompt = build_system_prompt(products, policies)
+
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    response = await _generate_with_retry(
+        client, model=MODEL, contents=question,
+        config=types.GenerateContentConfig(system_instruction=system_prompt),
+    )
+    return response.text
+
+
 MAX_TURNS = 6  # few turns of memory, per PROJECT_DESC.md Section 4.1 scope
 TOOL_SYSTEM_ADDENDUM = (
     "\nYou can call create_payment_link to let the customer pay. Only call it "
