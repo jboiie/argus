@@ -1,16 +1,16 @@
 # Graph Report - argus  (2026-08-26)
 
 ## Corpus Check
-- 48 files · ~34,927 words
+- 51 files · ~36,917 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 294 nodes · 467 edges · 25 communities (20 shown, 5 thin omitted)
-- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 15 edges (avg confidence: 0.8)
+- 312 nodes · 515 edges · 25 communities (20 shown, 5 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 18 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e9894243`
+- Built from commit: `26b94a47`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -32,24 +32,24 @@
 - reference_agent.py
 - sampler.py
 - diff.py
-- mandate.py
+- razorpay_mcp.py
 - Argus — Agent QA & Monitoring Suite for Agentic Commerce
 - Bugs & Fixes
 - main
 - Argus — Data Model
-- classify.py
+- mandate.py
 
 ## God Nodes (most connected - your core abstractions)
-1. `GroqModel` - 14 edges
-2. `main()` - 12 edges
+1. `ask_with_tools()` - 15 edges
+2. `GroqModel` - 14 edges
 3. `main()` - 12 edges
-4. `What You Must Do When Invoked` - 12 edges
-5. `Argus — Agent QA & Monitoring Suite for Agentic Commerce` - 12 edges
-6. `ask_with_tools()` - 11 edges
-7. `verify()` - 11 edges
+4. `main()` - 12 edges
+5. `What You Must Do When Invoked` - 12 edges
+6. `Argus — Agent QA & Monitoring Suite for Agentic Commerce` - 12 edges
+7. `ask_async()` - 11 edges
 8. `run_session()` - 11 edges
-9. `/graphify` - 11 edges
-10. `ask_async()` - 10 edges
+9. `verify()` - 11 edges
+10. `/graphify` - 11 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `main()` --calls--> `create_run()`  [INFERRED]
@@ -109,20 +109,20 @@ Cohesion: 0.12
 Nodes (17): BadRequestError, BaseModel, DeepEvalBaseLLM, check_self_consistency(), ConsistencyVerdict, demo(), Self-consistency sampler for claims not covered by ground truth - build step 17…, topic_ref is a short slug identifying the question (not a real Product/Policy… (+9 more)
 
 ### Community 14 - "reference_agent.py"
-Cohesion: 0.23
-Nodes (16): ask(), ask_async(), ask_with_tools(), build_system_prompt(), demo(), demo_tools(), _generate_with_retry(), _has_genuine_confirmation() (+8 more)
+Cohesion: 0.11
+Nodes (37): add_item(), apply_coupon(), _cart(), clear_cart(), compute_total(), demo(), load_coupons(), load_products() (+29 more)
 
 ### Community 15 - "sampler.py"
-Cohesion: 0.15
-Nodes (29): Client, _faithfulness_question(), main(), _numeric_question(), Sampler that simulates repeated sessions asking overlapping questions against…, Returns each result paired with the RAW agent text(s) that produced it - not…, run_and_log(), run_session() (+21 more)
+Cohesion: 0.11
+Nodes (38): Client, classify_drift_cause(), classify_severity(), demo(), _git_history_values(), _load_ground_truth(), drift_cause and severity classification - build step 19 (PROJECT_DESC.md…, critical | moderate | None (self_consistency rows have no ground truth to be… (+30 more)
 
 ### Community 16 - "diff.py"
 Cohesion: 0.23
 Nodes (12): AsyncOpenAI, check_faithfulness(), check_numeric(), demo(), DriftCheckResult, _extract_number(), _judge_client(), Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for… (+4 more)
 
-### Community 17 - "mandate.py"
-Cohesion: 0.15
-Nodes (16): create_mandate(), demo(), is_valid(), Mandate, Mandate / authorization layer - logged before any payment-link action. In-…, _auth_header(), call_tool(), demo() (+8 more)
+### Community 17 - "razorpay_mcp.py"
+Cohesion: 0.43
+Nodes (6): _auth_header(), call_tool(), demo(), list_tools(), MCP client wiring against Razorpay's remote MCP server. Connects with the…, Read-only: returns the names of tools Razorpay's MCP server exposes.
 
 ### Community 19 - "Argus — Agent QA & Monitoring Suite for Agentic Commerce"
 Cohesion: 0.33
@@ -133,32 +133,32 @@ Cohesion: 0.11
 Nodes (24): Commerce-specific vulnerabilities not covered by OWASP_ASI_2026's standard…, demo(), make_model_callback(), Bridges DeepTeam's model_callback contract to the reference agent. DeepTeam…, Bind run_id via closure - keeps model_callback's exact (input, turns=None)…, _seed_session(), session_id_for(), main() (+16 more)
 
 ### Community 22 - "Argus — Data Model"
-Cohesion: 0.18
-Nodes (10): Argus — Data Model, Cross-cutting conventions, Currency convention, Entity 0: Run (Supabase), Entity 1: Product (`catalog.json`), Entity 2: Policy (`policies.json`), Entity 3: Mandate (logged per authorization attempt, Supabase), Entity 4: Attack Event (red-team harness log, Supabase) (+2 more)
+Cohesion: 0.17
+Nodes (11): Argus — Data Model, Cross-cutting conventions, Currency convention, Entity 0: Run (Supabase), Entity 1: Product (`catalog.json`), Entity 2.5: Coupon (`coupons.json`), Entity 2: Policy (`policies.json`), Entity 3: Mandate (logged per authorization attempt, Supabase) (+3 more)
 
-### Community 24 - "classify.py"
-Cohesion: 0.29
-Nodes (9): classify_drift_cause(), classify_severity(), demo(), _git_history_values(), _load_ground_truth(), drift_cause and severity classification - build step 19 (PROJECT_DESC.md…, critical | moderate | None (self_consistency rows have no ground truth to be…, Every historical value `item_id`'s `value_field` has held in `filename`'s git… (+1 more)
+### Community 24 - "mandate.py"
+Cohesion: 0.60
+Nodes (5): create_mandate(), demo(), is_valid(), Mandate, Mandate / authorization layer - logged before any payment-link action. In-…
 
 ## Knowledge Gaps
-- **80 isolated node(s):** `Retired: `DEBUG_JOURNAL.md``, `For /graphify add and --watch`, `For /graphify query`, `For the commit hook and native CLAUDE.md integration`, `For --update and --cluster-only` (+75 more)
+- **81 isolated node(s):** `Status`, `Architecture`, `Design Decisions`, `License`, `For /graphify add and --watch` (+76 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **5 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `ask_with_tools()` connect `reference_agent.py` to `mandate.py`?**
-  _High betweenness centrality (0.057) - this node is a cross-community bridge._
-- **Why does `GroqModel` connect `GroqModel` to `main`, `sampler.py`?**
-  _High betweenness centrality (0.038) - this node is a cross-community bridge._
 - **Why does `_generate_with_retry()` connect `reference_agent.py` to `sampler.py`?**
+  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+- **Why does `GroqModel` connect `GroqModel` to `main`, `sampler.py`?**
+  _High betweenness centrality (0.037) - this node is a cross-community bridge._
+- **Why does `execute_tool_call()` connect `reference_agent.py` to `mandate.py`?**
   _High betweenness centrality (0.036) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `main()` (e.g. with `create_run()` and `end_run()`) actually correct?**
   _`main()` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 4 inferred relationships involving `main()` (e.g. with `create_run()` and `end_run()`) actually correct?**
   _`main()` has 4 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `Retired: `DEBUG_JOURNAL.md``, `For /graphify add and --watch`, `For /graphify query` to the rest of the system?**
-  _80 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `Status`, `Architecture`, `Design Decisions` to the rest of the system?**
+  _81 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `app.py` be split into smaller, more focused modules?**
   _Cohesion score 0.12258064516129032 - nodes in this community are weakly interconnected._
