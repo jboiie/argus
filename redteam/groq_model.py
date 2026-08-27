@@ -29,6 +29,22 @@ GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 # below) - which is what actually fixes the "invalid JSON" failures rather
 # than just working around them.
 DEFAULT_MODEL = "openai/gpt-oss-20b"
+
+# Simulation (writing attack prompts) and evaluation (judging the agent's
+# reply) are split because they fail differently. gpt-oss-20b judges fine
+# but REFUSES to write attacks for whole categories - the x3 full run had
+# 57/204 cases error with `failed_generation: "I'm sorry, but I can't help
+# with that."`, and all 18 commerce-vulnerability attacks (Price Integrity,
+# Refund Abuse, Mandate Bypass) were among them. Those are the project's
+# differentiator, so silently losing them to a simulator's alignment is not
+# an acceptable default.
+#
+# qwen3.8-27b writes them and honors strict json_schema (verified directly
+# against all four available Groq text models). The reasoning-token blowup
+# that got the older qwen3.6 abandoned during step 11 is already handled
+# here by reasoning_format=hidden + an explicit max_tokens.
+DEFAULT_SIMULATOR_MODEL = os.environ.get("GROQ_SIMULATOR_MODEL", "qwen/qwen3.8-27b")
+
 MAX_COMPLETION_TOKENS = 4096
 
 # All Groq calls share one 8000 TPM budget on this key/model regardless of

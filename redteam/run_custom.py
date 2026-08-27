@@ -8,7 +8,7 @@ import os
 from deepteam import red_team
 
 from redteam.custom_vulnerabilities import COMMERCE_VULNERABILITIES
-from redteam.groq_model import GroqModel
+from redteam.groq_model import DEFAULT_SIMULATOR_MODEL, GroqModel
 from redteam.model_callback import make_model_callback, session_id_for
 from redteam.scoring import asi_code_for, compute_asr, outcome
 
@@ -26,11 +26,12 @@ def main():
         run_id = create_run(supabase, run_type="redteam", label="custom_vulnerabilities_wiring_test")
 
     judge = GroqModel()
+    simulator = GroqModel(DEFAULT_SIMULATOR_MODEL)
 
     assessment = red_team(
         model_callback=make_model_callback(run_id),
         vulnerabilities=COMMERCE_VULNERABILITIES,
-        simulator_model=judge,
+        simulator_model=simulator,
         evaluation_model=judge,
         max_concurrent=3,
     )
