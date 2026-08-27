@@ -33,6 +33,7 @@ from dashboard.data import (
     fetch_attack_events,
     fetch_drift_incidents,
     fetch_mandates,
+    fetch_runs,
     fetch_session_turns,
     get_client,
 )
@@ -79,6 +80,29 @@ def _load_mandates():
 
 
 @st.cache_data(ttl=30)
+def _load_runs(run_type: str | None = None):
+    try:
+        return fetch_runs(_client(), run_type)
+    except Exception as exc:
+        st.error(f"Couldn't reach Supabase for runs: {exc}")
+        return pd.DataFrame()
+
+
+def _run_selector(run_type: str, key: str) -> str | None:
+    """Returns the selected run_id, or None for cumulative. Runs differ in
+    simulator model and in how much API quota was left when they ran, so a
+    blended view across all of them isn't a meaningful number."""
+    runs = _load_runs(run_type)
+    if runs.empty:
+        return None
+    labels = {"All runs (cumulative)": None}
+    for _, r in runs.iterrows():
+        labels[f"{r['started_at'][:16].replace('T', ' ')} — {r['label']}"] = r["run_id"]
+    choice = st.selectbox("Run", list(labels), key=key)
+    return labels[choice]
+
+
+@st.cache_data(ttl=30)
 def _load_session_turns(session_id: str):
     try:
         return fetch_session_turns(_client(), session_id)
@@ -102,6 +126,13 @@ def _render_attack_report() -> None:
     if events.empty:
         st.info("No attack events logged yet - run redteam/run_full.py.")
         return
+
+    selected_run = _run_selector("redteam", key="attack_run")
+    if selected_run:
+        events = events[events["run_id"] == selected_run]
+        if events.empty:
+            st.info("No attack events logged for that run.")
+            return
 
     asr = compute_asr_by_category(events)
     total_scored = int(asr["bypassed"].sum() + asr["defended"].sum())
@@ -132,6 +163,13 @@ def _render_drift_feed() -> None:
     if incidents.empty:
         st.info("No drift incidents logged yet - run drift/sampler.py.")
         return
+
+    selected_run = _run_selector("drift_sample", key="drift_run")
+    if selected_run:
+        incidents = incidents[incidents["run_id"] == selected_run]
+        if incidents.empty:
+            st.info("No drift incidents logged for that run.")
+            return
 
     flagged_count = int(incidents["flagged"].sum())
     col1, col2, col3 = st.columns(3)

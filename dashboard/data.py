@@ -41,6 +41,25 @@ def _drop_excluded(df: pd.DataFrame, excluded: set[str]) -> pd.DataFrame:
     return df[~df["run_id"].isin(excluded)]
 
 
+def fetch_runs(client: Client, run_type: str | None = None, limit: int = 500) -> pd.DataFrame:
+    """Real runs only, newest first - fixtures/wiring checks filtered out on
+    the same rule the row queries use. Backs the dashboard's run selector:
+    without one, every view blends a dozen runs made under different
+    simulator models and different quota conditions into one number, which
+    isn't a result anyone can interpret."""
+    query = client.table("runs").select("*").order("started_at", desc=True).limit(limit)
+    if run_type:
+        query = query.eq("run_type", run_type)
+    df = pd.DataFrame(query.execute().data)
+    if df.empty:
+        return df
+    keep = ~(
+        df["label"].isin(EXCLUDED_RUN_LABELS)
+        | df["label"].str.endswith(EXCLUDED_LABEL_SUFFIXES)
+    )
+    return df[keep]
+
+
 def fetch_attack_events(client: Client, limit: int = 1000) -> pd.DataFrame:
     resp = client.table("attack_events").select("*").order("timestamp", desc=True).limit(limit).execute()
     return _drop_excluded(pd.DataFrame(resp.data), _excluded_run_ids(client))
