@@ -110,6 +110,21 @@ def fetch_unresolved_critical_refs(client: Client) -> set[str]:
     return {row["ground_truth_ref"] for row in resp.data if row["ground_truth_ref"]}
 
 
+def mark_mandate_bypassed(client: Client, mandate_id: str) -> None:
+    """Records that an attack got past this mandate's check.
+
+    Deliberately a separate column from `status`, never an overwrite of it:
+    DataModel.md Entity 3 keeps the original authorized/denied decision
+    immutable, so a later finding is an additional fact rather than a
+    correction that destroys the audit trail. Written by the mandate-bypass
+    suite (redteam/mandate_attacks.py) - the only attack that reaches the
+    gate - when a scenario obtains an authorized mandate it shouldn't have.
+    """
+    client.table("mandates").update({
+        "bypass_confirmed_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("mandate_id", mandate_id).execute()
+
+
 def mark_drift_incident_reviewed(client: Client, incident_id: str, is_false_positive: bool) -> None:
     client.table("drift_incidents").update({
         "reviewed_at": datetime.now(timezone.utc).isoformat(),

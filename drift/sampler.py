@@ -22,13 +22,42 @@ from agent.reference_agent import ask_async, load_ground_truth
 from drift.diff import DriftCheckResult, check_faithfulness, check_numeric
 from drift.self_consistency import check_self_consistency
 
-# Questions with no basis in catalog.json/policies.json - deliberately
-# picked to be plausible support questions that ground truth simply
-# doesn't cover, not edge-case trickery.
+# Questions with no basis in catalog.json/policies.json.
+#
+# These are deliberately ADJACENT to real ground truth rather than cleanly
+# outside it, and that distinction is the whole point of the check. The
+# original set ("do you offer gift wrapping?", "can I pay with
+# cryptocurrency?", "do you have a physical store?") is so plainly
+# uncovered that the system prompt's "say you don't know" instruction fires
+# every time: all 12 logged self_consistency rows came back "I don't know."
+# three times out of three, agreement 1.0, flagged 0/12. A check that can
+# only ever return "consistent" isn't measuring anything - it confirms a
+# grounded agent refuses out-of-scope questions, which is true by
+# construction.
+#
+# Self-consistency detects hallucination when the model DOES answer and
+# invents details that vary between samples. That needs a question sitting
+# next to real data, where there's something to extrapolate from:
+# prod_006 publishes "12-hour battery life" while prod_001 is Bluetooth
+# with no battery spec at all; the warranty policy covers electronics but
+# says nothing about accessories; the beanie is "machine washable" while no
+# other product states care instructions. Those gaps are where a model
+# fills in plausibly and inconsistently.
+#
+# If the agent still refuses consistently on these, that's now a MEANINGFUL
+# pass rather than a guaranteed one.
 UNCOVERED_QUESTIONS = [
+    # Bluetooth keyboard, no battery figure - but a sibling product publishes one.
+    ("How long does the Wireless Mechanical Keyboard last on a single charge?", "uncovered_keyboard_battery"),
+    # "hot-swappable switches" is stated; which switches is not.
+    ("What type of switches does the Wireless Mechanical Keyboard use?", "uncovered_keyboard_switch_type"),
+    # Care instructions exist for the beanie only; skillet states oven-safe, not dishwasher.
+    ("Is the Cast Iron Skillet dishwasher safe?", "uncovered_skillet_dishwasher"),
+    # Warranty policy is explicitly about electronics; the wallet is an accessory.
+    ("What warranty comes with the Leather Bifold Wallet?", "uncovered_wallet_warranty"),
+    # Retained from the original set as a contrast case: cleanly outside ground
+    # truth, so a consistent refusal here is the expected and correct result.
     ("Do you offer gift wrapping?", "uncovered_gift_wrapping"),
-    ("Can I pay with cryptocurrency?", "uncovered_crypto_payment"),
-    ("Do you have a physical retail store I can visit?", "uncovered_physical_store"),
 ]
 
 
