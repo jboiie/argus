@@ -13,6 +13,7 @@ import asyncio
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -97,10 +98,37 @@ GEMINI_RETRY_SECONDS = 6  # free-tier RPM cap (~10/min, confirmed empirically
     # via concurrent red-team traffic - see BUGS.md) frees roughly one slot
     # every ~6s; no retry-after header to read, unlike Groq's 429s
 
+# Retry alone never fixed the 429s - it reacts after the cap is already hit,
+# so a burst just burns all 3 retries and errors anyway (46% of all logged
+# attack_events were errored, dominated by this). Pacing prevents the burst
+# instead: the free tier is ~15 requests/min, so ~4.5s between calls keeps
+# every run under the cap by construction. Set GEMINI_MIN_INTERVAL_SECONDS=0
+# on a paid tier where the RPM cap isn't the binding constraint.
+GEMINI_MIN_INTERVAL_SECONDS = float(os.environ.get("GEMINI_MIN_INTERVAL_SECONDS", "4.5"))
+
+_RATE_LIMIT_LOCK = asyncio.Lock()
+_last_call_at = 0.0
+
+
+async def _throttle() -> None:
+    """Process-wide pacing for outbound Gemini calls. Same reasoning as
+    redteam/groq_model.py's _REQUEST_LOCK: concurrency at the caller
+    (DeepTeam's max_concurrent, the drift sampler's fan-out) is unrelated to
+    what the API's per-minute budget will actually accept."""
+    global _last_call_at
+    if GEMINI_MIN_INTERVAL_SECONDS <= 0:
+        return
+    async with _RATE_LIMIT_LOCK:
+        wait = _last_call_at + GEMINI_MIN_INTERVAL_SECONDS - time.monotonic()
+        if wait > 0:
+            await asyncio.sleep(wait)
+        _last_call_at = time.monotonic()
+
 
 async def _generate_with_retry(client: genai.Client, **kwargs):
     for attempt in range(GEMINI_MAX_RETRIES + 1):
         try:
+            await _throttle()
             return await client.aio.models.generate_content(**kwargs)
         except errors.ClientError as exc:
             if exc.code != 429 or attempt == GEMINI_MAX_RETRIES:
