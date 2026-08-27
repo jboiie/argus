@@ -15,6 +15,8 @@ real catalog.json prices and a validated coupon) and the model never
 gets a say in the number that reaches Razorpay. See BUGS.md.
 """
 
+import os
+
 from google.genai import types
 
 from agent import cart
@@ -22,6 +24,20 @@ from agent.mandate import create_mandate
 from agent.razorpay_mcp import call_tool as mcp_call_tool
 
 MONEY_MOVING_TOOLS = {"create_payment_link"}
+
+
+def _log_mandate_safe(mandate) -> None:
+    """DataModel.md Entity 3: logged for every mandate creation attempt,
+    regardless of whether a real Razorpay call fires. Fails soft (never
+    blocks the live conversation on a Supabase hiccup) - same fail-open
+    convention as agent/drift_guard.py."""
+    if not (os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")):
+        return
+    try:
+        from telemetry.supabase_client import get_client, log_mandate
+        log_mandate(get_client(), mandate)
+    except Exception:
+        pass
 
 
 def add_to_cart_declaration() -> types.FunctionDeclaration:
@@ -111,10 +127,12 @@ async def execute_tool_call(
     )
 
     if mandate.status != "authorized":
+        _log_mandate_safe(mandate)
         return {"blocked": True, "reason": "mandate_denied", "mandate_id": mandate.mandate_id}
 
     if not is_live_demo:
         cart.clear_cart(session_id)
+        _log_mandate_safe(mandate)
         return {
             "stubbed": True,
             "mandate_id": mandate.mandate_id,
@@ -126,4 +144,5 @@ async def execute_tool_call(
     result = await mcp_call_tool(name, mcp_args)
     mandate.real_call_fired = True
     cart.clear_cart(session_id)
+    _log_mandate_safe(mandate)
     return {"mandate_id": mandate.mandate_id, "result": result}

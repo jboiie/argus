@@ -1,7 +1,8 @@
 """Streamlit dashboard - build steps 21-24.
 
-Two tabs: pre-deployment report (ASR by category) and live drift feed
-(incidents over time), each with an audit-trail detail view per incident
+Three tabs: pre-deployment report (ASR by category), live drift feed
+(incidents over time), and mandate audit trail (Section 4.2's
+authorization layer) - each with an audit-trail detail view per row
 (Section 4.5's "must show full audit trail per incident"). Read-only -
 anon key only, never service_role (see DataModel.md's Security
 convention - this is the one place that rule actually matters, since
@@ -31,6 +32,7 @@ from dashboard.data import (
     drift_incidents_over_time,
     fetch_attack_events,
     fetch_drift_incidents,
+    fetch_mandates,
     fetch_session_turns,
     get_client,
 )
@@ -64,6 +66,15 @@ def _load_drift_incidents():
         return fetch_drift_incidents(_client())
     except Exception as exc:
         st.error(f"Couldn't reach Supabase for drift_incidents: {exc}")
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=30)
+def _load_mandates():
+    try:
+        return fetch_mandates(_client())
+    except Exception as exc:
+        st.error(f"Couldn't reach Supabase for mandates: {exc}")
         return pd.DataFrame()
 
 
@@ -157,6 +168,35 @@ def _render_drift_feed() -> None:
         _render_conversation(row["session_id"])
 
 
+def _render_mandates() -> None:
+    mandates = _load_mandates()
+    if mandates.empty:
+        st.info("No mandates logged yet - a checkout has to run against the tools-enabled agent (agent/reference_agent.py::ask_with_tools).")
+        return
+
+    authorized = int((mandates["status"] == "authorized").sum())
+    denied = int((mandates["status"] == "denied").sum())
+    live_calls = int(mandates["real_call_fired"].sum())
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Authorized", authorized)
+    col2.metric("Denied", denied)
+    col3.metric("Real Razorpay calls fired", live_calls)
+
+    st.caption("Every mandate creation attempt gets logged here, authorized or denied, live or stubbed - Track 01's \"every money action explainable, bounded and gated\" bar (DataModel.md Entity 3).")
+    display_cols = ["mandate_id", "authorized_at", "status", "scope", "amount", "coupon_code", "user_confirmed", "is_live_demo", "real_call_fired", "session_id"]
+    st.dataframe(mandates[display_cols], use_container_width=True)
+
+    st.subheader("Audit trail - inspect a mandate")
+    selected = st.selectbox("mandate_id", mandates["mandate_id"].tolist())
+    if selected:
+        row = mandates[mandates["mandate_id"] == selected].iloc[0]
+        st.write(f"**Status:** {row['status']}  **Amount:** Rs.{row['amount'] / 100:.2f}")
+        st.write(f"**Line items:** {row['line_items']}")
+        st.write(f"**Coupon:** {row['coupon_code'] or '(none)'}")
+        st.write(f"**User confirmed:** {row['user_confirmed']}  **Bypass confirmed at:** {row['bypass_confirmed_at'] or '(never - not bypassed)'}")
+        _render_conversation(row["session_id"])
+
+
 def main():
     st.title("\U0001F441 Argus — Agent QA & Monitoring")
     st.caption("Pre-deployment red-team results and post-deployment drift feed for the reference commerce agent.")
@@ -165,11 +205,13 @@ def main():
         st.warning("SUPABASE_URL / SUPABASE_ANON_KEY not configured.")
         return
 
-    tab1, tab2 = st.tabs(["Pre-Deployment Report", "Drift Feed"])
+    tab1, tab2, tab3 = st.tabs(["Pre-Deployment Report", "Drift Feed", "Mandates"])
     with tab1:
         _render_attack_report()
     with tab2:
         _render_drift_feed()
+    with tab3:
+        _render_mandates()
 
 
 if __name__ == "__main__":

@@ -29,6 +29,11 @@ def fetch_session_turns(client: Client, session_id: str) -> pd.DataFrame:
     return pd.DataFrame(resp.data)
 
 
+def fetch_mandates(client: Client, limit: int = 1000) -> pd.DataFrame:
+    resp = client.table("mandates").select("*").order("authorized_at", desc=True).limit(limit).execute()
+    return pd.DataFrame(resp.data)
+
+
 def compute_asr_by_category(df: pd.DataFrame) -> pd.DataFrame:
     """One row per (vulnerability, vulnerability_type) - same aggregation
     as redteam/scoring.py::compute_asr, but off already-logged DB rows
