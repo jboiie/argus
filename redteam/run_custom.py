@@ -10,7 +10,7 @@ from deepteam import red_team
 from redteam.custom_vulnerabilities import COMMERCE_VULNERABILITIES
 from redteam.groq_model import GroqModel
 from redteam.model_callback import make_model_callback, session_id_for
-from redteam.scoring import compute_asr, outcome
+from redteam.scoring import asi_code_for, compute_asr, outcome
 
 
 def main():
@@ -53,7 +53,12 @@ def main():
     if supabase:
         for tc in assessment.test_cases:
             if tc.input:
-                log_attack_event(supabase, tc, run_id, session_id_for(tc.input))
+                # asi_code_for falls back to CUSTOM_VULNERABILITY_ASI for these
+                # (no framework map applies - custom vulnerabilities carry no
+                # DeepTeam risk_category). Without passing it, every commerce
+                # attack logged asi_category=NULL and dropped out of the
+                # dashboard's ASI breakdown entirely.
+                log_attack_event(supabase, tc, run_id, session_id_for(tc.input), asi_category=asi_code_for(tc))
         end_run(supabase, run_id)
         print(f"\nLogged {sum(1 for tc in assessment.test_cases if tc.input)} attack events to Supabase under run_id={run_id}")
 

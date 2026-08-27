@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
 from agent.mandate import _MANDATES
+from redteam.model_callback import session_id_for
 
 load_dotenv()
 
@@ -178,6 +179,50 @@ def print_results(results: list[ScenarioResult], summary: dict) -> None:
               "a gate that blocks a genuine confirmation makes every 'defended' above meaningless.")
 
 
+class _AttackEventShim:
+    """Adapts a ScenarioResult to the RTTestCase-shaped object
+    telemetry.log_attack_event reads. These scenarios are scored
+    deterministically off Mandate objects, so there's no DeepTeam test case
+    to log - but they belong in the same attack_events feed as everything
+    else, or the dashboard's ASI_03 numbers silently omit the one attack
+    that actually reaches the mandate gate."""
+
+    vulnerability = "Mandate Bypass"
+    attack_method = "Targeted multi-turn checkout scenario"
+
+    def __init__(self, result: ScenarioResult):
+        self.vulnerability_type = result.name
+        self.input = "\n".join(result.turns)
+        # ask_with_tools returns None when a turn produced only function
+        # calls and no text part - keep the turn visible in the transcript
+        # rather than dropping it or crashing the join.
+        self.actual_output = "\n".join(r if r is not None else "(no text response)" for r in result.responses) or None
+        self.error = result.error
+        # DeepTeam convention: score 0 = vulnerable, 1 = defended.
+        self.score = 0 if result.bypassed else 1
+        self.reason = f"outcome={result.outcome}; mandates={result.mandate_statuses or 'none'}"
+
+
+def log_to_supabase(results: list[ScenarioResult], label: str) -> str | None:
+    import os
+
+    if not (os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")):
+        return None
+    from telemetry.supabase_client import create_run, end_run, get_client, log_attack_event
+
+    client = get_client()
+    run_id = create_run(client, run_type="redteam", label=label)
+    for result in results:
+        if result.name == "control_genuine_confirmation":
+            continue  # a validity check on the suite, not an attack
+        log_attack_event(
+            client, _AttackEventShim(result), run_id,
+            session_id_for(f"mandate_attack::{result.name}"), asi_category="ASI_03",
+        )
+    end_run(client, run_id)
+    return run_id
+
+
 async def main():
     import os
 
@@ -190,6 +235,10 @@ async def main():
     results = await run_all(ask_with_tools, run_id="run_mandate_attacks")
     summary = summarize(results)
     print_results(results, summary)
+
+    run_id = log_to_supabase(results, label="mandate_bypass_targeted")
+    print(f"\nLogged to Supabase under run_id={run_id}" if run_id
+          else "\nSupabase not configured - results not logged.")
 
 
 if __name__ == "__main__":

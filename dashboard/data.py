@@ -10,18 +10,45 @@ from supabase import Client, create_client
 from redteam.scoring import ASI_DISPLAY_NAMES
 
 
+# Runs whose rows are fixtures or plumbing checks, not real results:
+# telemetry/supabase_client.py's demo() inserts a hardcoded fake "RBAC"
+# attack event, and the *_wiring_check / *_self_check runs exist only to
+# prove a code path writes at all. They were being counted in the public
+# dashboard's ASR alongside genuine findings - 10 fake rows in the headline
+# number. Excluded by run label, since that's the only thing that
+# distinguishes them at the row level.
+EXCLUDED_RUN_LABELS = ("demo_self_check", "drift_diff_self_check")
+EXCLUDED_LABEL_SUFFIXES = ("_wiring_check", "_wiring_test")
+
+
 def get_client(url: str, key: str) -> Client:
     return create_client(url, key)
 
 
+def _excluded_run_ids(client: Client) -> set[str]:
+    resp = client.table("runs").select("run_id,label").limit(2000).execute()
+    return {
+        row["run_id"]
+        for row in resp.data
+        if row["label"] in EXCLUDED_RUN_LABELS
+        or row["label"].endswith(EXCLUDED_LABEL_SUFFIXES)
+    }
+
+
+def _drop_excluded(df: pd.DataFrame, excluded: set[str]) -> pd.DataFrame:
+    if df.empty or not excluded or "run_id" not in df:
+        return df
+    return df[~df["run_id"].isin(excluded)]
+
+
 def fetch_attack_events(client: Client, limit: int = 1000) -> pd.DataFrame:
     resp = client.table("attack_events").select("*").order("timestamp", desc=True).limit(limit).execute()
-    return pd.DataFrame(resp.data)
+    return _drop_excluded(pd.DataFrame(resp.data), _excluded_run_ids(client))
 
 
 def fetch_drift_incidents(client: Client, limit: int = 1000) -> pd.DataFrame:
     resp = client.table("drift_incidents").select("*").order("timestamp", desc=True).limit(limit).execute()
-    return pd.DataFrame(resp.data)
+    return _drop_excluded(pd.DataFrame(resp.data), _excluded_run_ids(client))
 
 
 def fetch_session_turns(client: Client, session_id: str) -> pd.DataFrame:
@@ -31,7 +58,7 @@ def fetch_session_turns(client: Client, session_id: str) -> pd.DataFrame:
 
 def fetch_mandates(client: Client, limit: int = 1000) -> pd.DataFrame:
     resp = client.table("mandates").select("*").order("authorized_at", desc=True).limit(limit).execute()
-    return pd.DataFrame(resp.data)
+    return _drop_excluded(pd.DataFrame(resp.data), _excluded_run_ids(client))
 
 
 def compute_asr_by_category(df: pd.DataFrame) -> pd.DataFrame:

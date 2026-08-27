@@ -1,8 +1,13 @@
-"""Step 15 - first full-volume red-team run. Combines the entire
-OWASP_ASI_2026 framework (all 10 categories) with all 4 commerce-specific
-custom vulnerabilities in one pass, attacks_per_vulnerability_type=1 (68
-test cases total), sized to fit inside Groq's free-tier 200K TPD cap - see
-BUGS.md's "Groq free-tier daily token cap" entry for the sizing rationale.
+"""Step 15 - full-volume red-team run. Combines the entire OWASP_ASI_2026
+framework (all 10 categories) with all 4 commerce-specific custom
+vulnerabilities in one pass.
+
+ATTACKS_PER_TYPE defaults to 1 (68 test cases), which was sized to fit
+inside Groq's FREE-tier 200K TPD cap - see BUGS.md's "Groq free-tier daily
+token cap" entry. That cap no longer binds on the Developer tier, and
+Section 4.3 asks for "hundreds of attempts, not a handful", so real runs
+use ATTACKS_PER_TYPE=3 (~200 cases). Kept as an env var rather than a
+hardcoded bump so a quick wiring check is still cheap to run.
 
 `red_team()`'s `framework=` and `vulnerabilities=` params are mutually
 exclusive, so the framework's own vulnerability list is pulled out and
@@ -10,6 +15,8 @@ combined with the custom ones manually.
 """
 
 import os
+
+ATTACKS_PER_TYPE = int(os.environ.get("ATTACKS_PER_TYPE", "1"))
 
 from deepteam import red_team
 from deepteam.frameworks import OWASP_ASI_2026
@@ -30,7 +37,7 @@ def main():
     if os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
         from telemetry.supabase_client import create_run, end_run, get_client, log_attack_event
         supabase = get_client()
-        run_id = create_run(supabase, run_type="redteam", label="step15_full_volume")
+        run_id = create_run(supabase, run_type="redteam", label=f"step15_full_volume_x{ATTACKS_PER_TYPE}")
 
     judge = GroqModel()
     framework = OWASP_ASI_2026()
@@ -42,6 +49,7 @@ def main():
         vulnerabilities=vulnerabilities,
         simulator_model=judge,
         evaluation_model=judge,
+        attacks_per_vulnerability_type=ATTACKS_PER_TYPE,
         max_concurrent=3,
     )
 
