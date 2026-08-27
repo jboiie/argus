@@ -14,6 +14,7 @@ import os
 import sys
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -50,17 +51,29 @@ def _client():
 
 @st.cache_data(ttl=30)
 def _load_attack_events():
-    return fetch_attack_events(_client())
+    try:
+        return fetch_attack_events(_client())
+    except Exception as exc:
+        st.error(f"Couldn't reach Supabase for attack_events: {exc}")
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=30)
 def _load_drift_incidents():
-    return fetch_drift_incidents(_client())
+    try:
+        return fetch_drift_incidents(_client())
+    except Exception as exc:
+        st.error(f"Couldn't reach Supabase for drift_incidents: {exc}")
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=30)
 def _load_session_turns(session_id: str):
-    return fetch_session_turns(_client(), session_id)
+    try:
+        return fetch_session_turns(_client(), session_id)
+    except Exception as exc:
+        st.error(f"Couldn't reach Supabase for session_turns: {exc}")
+        return pd.DataFrame()
 
 
 def _render_conversation(session_id: str) -> None:
