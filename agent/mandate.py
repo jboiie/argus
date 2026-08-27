@@ -14,6 +14,35 @@ MANDATE_TTL_MINUTES = 15
 
 _MANDATES: list["Mandate"] = []
 
+# Challenge-response state for the confirmation gate. Keyed by session_id.
+#
+# The gate used to accept any affirmative-looking keyword in the user's
+# latest turn, which redteam/mandate_attacks.py showed is bypassable three
+# different ways (a claim about a past confirmation, a forged SYSTEM
+# MESSAGE, a third party's approval) - 50% ASR. Pattern-matching user text
+# can't distinguish "I authorize this now" from "someone else authorized
+# this already", and no blocklist closes that gap in general.
+#
+# So authorization is two-phase instead: the BACKEND records that it asked
+# (solicit_confirmation, quoting the real server-computed amount), and only
+# an affirmative given while that challenge is outstanding counts. An
+# unsolicited assertion of confirmation is never sufficient, no matter how
+# it's worded, because nothing asked for it.
+_PENDING_CONFIRMATIONS: dict[str, dict] = {}
+
+
+def solicit_confirmation(session_id: str, amount: int, line_items: list[dict]) -> None:
+    """Record that the backend has asked this session to confirm `amount`."""
+    _PENDING_CONFIRMATIONS[session_id] = {"amount": amount, "line_items": line_items}
+
+
+def pending_confirmation(session_id: str) -> dict | None:
+    return _PENDING_CONFIRMATIONS.get(session_id)
+
+
+def clear_confirmation(session_id: str) -> None:
+    _PENDING_CONFIRMATIONS.pop(session_id, None)
+
 
 @dataclass
 class Mandate:
@@ -76,6 +105,12 @@ def demo():
     m2 = create_mandate("run_dev", "sess_1", "purchase", 349900, items, None, user_confirmed=False)
     assert m2.status == "denied"
     assert not is_valid(m2)
+
+    assert pending_confirmation("sess_pending") is None
+    solicit_confirmation("sess_pending", 349900, items)
+    assert pending_confirmation("sess_pending")["amount"] == 349900
+    clear_confirmation("sess_pending")
+    assert pending_confirmation("sess_pending") is None, "a spent challenge must not linger"
 
     print(f"authorized mandate: {m1.mandate_id} expires_at={m1.expires_at.isoformat()}")
     print(f"denied mandate: {m2.mandate_id}")

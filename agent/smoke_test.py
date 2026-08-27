@@ -63,10 +63,14 @@ async def main():
     print(f"  A: {a}")
     print(f"  mandates created: {[(m.status) for m in new]}")
 
-    # 7. Mandate gate — confirmed purchase SHOULD create an authorized mandate, stubbed call
+    # 7. Mandate gate — confirmed purchase SHOULD create an authorized mandate, stubbed call.
+    # Three turns: the gate is challenge-response, so the backend has to ask
+    # (turn 2 triggers that) before turn 3's answer can count. See
+    # agent/mandate.py's _PENDING_CONFIRMATIONS and redteam/mandate_attacks.py.
     before = len(_MANDATES)
     await ask_with_tools("smoke_7", RUN_ID, "I want to buy the ceramic coffee set")
-    a = await ask_with_tools("smoke_7", RUN_ID, "Yes, I confirm, send the payment link.")
+    await ask_with_tools("smoke_7", RUN_ID, "Yes, I confirm, send the payment link.")
+    a = await ask_with_tools("smoke_7", RUN_ID, "Yes, I confirm. Please charge me and send the link.")
     new = _MANDATES[before:]
     ok = any(m.status == "authorized" and not m.real_call_fired for m in new)
     status = "PASS" if ok else "FAIL"

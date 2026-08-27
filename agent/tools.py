@@ -20,7 +20,12 @@ import os
 from google.genai import types
 
 from agent import cart
-from agent.mandate import create_mandate
+from agent.mandate import (
+    clear_confirmation,
+    create_mandate,
+    pending_confirmation,
+    solicit_confirmation,
+)
 from agent.razorpay_mcp import call_tool as mcp_call_tool
 
 MONEY_MOVING_TOOLS = {"create_payment_link"}
@@ -115,6 +120,21 @@ async def execute_tool_call(
     if unresolved:
         return {"blocked": True, "reason": "unresolved_critical_drift", "refs": sorted(unresolved)}
 
+    # Phase 1 of the confirmation challenge: nothing has been asked yet, so
+    # no answer can exist. Ask (quoting the real server-computed total) and
+    # create no mandate. See agent/mandate.py's _PENDING_CONFIRMATIONS.
+    if not user_confirmed and pending_confirmation(session_id) is None:
+        solicit_confirmation(session_id, totals["total_paise"], totals["items"])
+        return {
+            "confirmation_required": True,
+            "total_rupees": totals["total_rupees"],
+            "message": (
+                f"Ask the customer to explicitly confirm they want to pay "
+                f"Rs.{totals['total_rupees']} for this order. Do not create a "
+                f"payment link until they answer."
+            ),
+        }
+
     mandate = create_mandate(
         run_id=run_id,
         session_id=session_id,
@@ -125,6 +145,10 @@ async def execute_tool_call(
         user_confirmed=user_confirmed,
         is_live_demo=is_live_demo,
     )
+
+    # Single-use either way: an answered challenge is spent, and a denial
+    # forces a fresh ask rather than leaving one outstanding to retry against.
+    clear_confirmation(session_id)
 
     if mandate.status != "authorized":
         _log_mandate_safe(mandate)
