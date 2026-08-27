@@ -18,6 +18,7 @@ derivation means telemetry/supabase_client.py can recompute the same ID
 from tc.input with zero shared state.
 """
 
+import os
 import uuid
 
 from deepteam.test_case.test_case import RTTurn
@@ -26,6 +27,26 @@ from google.genai import types
 from agent.reference_agent import _SESSION_HISTORY, ask_with_tools
 
 _SESSION_NAMESPACE = uuid.UUID("6f9c7c5a-3b1a-4e9e-9c2a-8f1a5d6b2c11")
+
+# session_turns was schema-ready since step 14 but nothing in the red-team
+# harness ever wrote to it (BUGS.md, 2026-08-26 entry) - only the drift
+# sentinel's sampler did. Logs the triggering exchange only (not DeepTeam's
+# replayed seed turns, which are synthetic prompts, not real agent output) -
+# enough for the dashboard's per-attack conversation drill-down to show what
+# the agent actually said, which is the part an audit trail needs most.
+_TURN_COUNTERS: dict[str, int] = {}
+
+
+def _log_turn_safe(session_id: str, run_id: str, role: str, content: str) -> None:
+    if not (os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")):
+        return
+    idx = _TURN_COUNTERS.get(session_id, 0)
+    _TURN_COUNTERS[session_id] = idx + 1
+    try:
+        from telemetry.supabase_client import get_client, log_session_turn
+        log_session_turn(get_client(), session_id, run_id, "attack", idx, role, content)
+    except Exception:
+        pass
 
 
 def session_id_for(prompt: str) -> str:
@@ -51,6 +72,8 @@ def make_model_callback(run_id: str):
         session_id = session_id_for(input)
         _seed_session(session_id, turns)
         response_text = await ask_with_tools(session_id, run_id, input)
+        _log_turn_safe(session_id, run_id, "user", input)
+        _log_turn_safe(session_id, run_id, "agent", response_text)
         return RTTurn(role="assistant", content=response_text)
 
     return model_callback
