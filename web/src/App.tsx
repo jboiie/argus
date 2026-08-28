@@ -9,6 +9,7 @@ import { Drift } from "./views/Drift";
 import { Mandates as MandatesView } from "./views/Mandates";
 import { LoadingView, Note } from "./components/ui";
 import Dock from "./components/Dock";
+import Shuffle from "./components/Shuffle";
 
 const NAV = [
   { id: "findings", label: "Findings", icon: ShieldAlert, blurb: "What the harness caught" },
@@ -54,7 +55,20 @@ export default function App() {
       <div className="relative z-10 flex items-center justify-between px-6 pt-5 sm:px-10">
         <div className="flex items-center gap-2.5">
           <Eye className="size-4 text-brass" strokeWidth={2} aria-hidden="true" />
-          <span className="font-mono text-2xs tracking-[0.24em] text-ink-2 uppercase">Argus</span>
+          <Shuffle
+            text="ARGUS"
+            tag="span"
+            textAlign="left"
+            className="font-mono text-[17px] font-semibold tracking-[0.24em] text-ink"
+            shuffleDirection="down"
+            duration={0.3}
+            shuffleTimes={2}
+            stagger={0.035}
+            scrambleCharset="ARGUS01<>#/\\"
+            colorFrom="var(--color-brass)"
+            colorTo="var(--color-ink)"
+            triggerOnHover
+          />
           <span className="hidden h-3 w-px bg-rule sm:block" />
           <span className="hidden font-mono text-2xs tracking-[0.18em] text-ink-3 uppercase sm:block">
             {active.blurb}

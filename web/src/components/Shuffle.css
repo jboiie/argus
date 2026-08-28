@@ -1,0 +1,45 @@
+/* Shuffle, de-opinionated.
+ *
+ * The stock CSS hardcodes `font-size: 4rem` and `font-family: 'Press Start 2P'`,
+ * which would drop an arcade face into a console built on IBM Plex and blow the
+ * type scale apart. Everything here inherits instead, so the component carries
+ * behaviour and the call site keeps control of the type. */
+
+.shuffle-parent {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+  line-height: 1;
+
+  /* Deliberately declares no font, size, tracking or colour. Writing
+     `font: inherit` here would be worse than the hardcoded values it replaced:
+     it has the same specificity as a utility class and silently wins or loses
+     on bundle order. Absence lets the call site style it normally. */
+
+  /* Hidden only until the strips are built, to avoid a flash of un-split text.
+     Shuffle.tsx force-flips this after a short timeout so the mark can never
+     be left permanently invisible if the trigger does not fire. */
+  visibility: hidden;
+}
+
+.shuffle-parent.is-ready {
+  visibility: visible;
+}
+
+.shuffle-char-wrapper {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: baseline;
+  position: relative;
+}
+
+.shuffle-char-wrapper > span {
+  display: inline-flex;
+  will-change: transform;
+}
+
+.shuffle-char {
+  line-height: 1;
+  display: inline-block;
+  text-align: center;
+}
