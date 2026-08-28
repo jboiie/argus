@@ -85,6 +85,7 @@ def ask(question: str) -> str:
     system_prompt = build_system_prompt(products, policies, load_coupons(), unresolved_critical_refs())
 
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    _throttle_sync()
     response = client.models.generate_content(
         model=MODEL,
         contents=question,
@@ -108,6 +109,21 @@ GEMINI_MIN_INTERVAL_SECONDS = float(os.environ.get("GEMINI_MIN_INTERVAL_SECONDS"
 
 _RATE_LIMIT_LOCK = asyncio.Lock()
 _last_call_at = 0.0
+
+
+def _throttle_sync() -> None:
+    """Pacing for the synchronous ask() path. Shares _last_call_at with the
+    async throttle: both spend the same per-minute budget, so pacing only
+    one of them lets a burst of sync calls blow the cap that the async side
+    is carefully staying under. No lock - ask() is only used from
+    single-threaded scripts (smoke test, module demos)."""
+    global _last_call_at
+    if GEMINI_MIN_INTERVAL_SECONDS <= 0:
+        return
+    wait = _last_call_at + GEMINI_MIN_INTERVAL_SECONDS - time.monotonic()
+    if wait > 0:
+        time.sleep(wait)
+    _last_call_at = time.monotonic()
 
 
 async def _throttle() -> None:

@@ -45,7 +45,10 @@ async def check_self_consistency(question: str, topic_ref: str) -> DriftCheckRes
     nullable for self_consistency rows - see migrate_002."""
     try:
         responses = await asyncio.gather(*[ask_async(question) for _ in range(N_SAMPLES)])
-    except Exception:
+    except Exception as exc:
+        # Same reasoning as drift/diff.py's faithfulness handler: an
+        # `errored` row with no recorded cause can't be diagnosed later.
+        print(f"  (self-consistency sampling failed for {topic_ref}: {type(exc).__name__}: {exc})")
         return DriftCheckResult(
             check_type="self_consistency", question=question, ground_truth_ref=None,
             ground_truth_type=None, expected=None, actual=None,
@@ -58,7 +61,8 @@ async def check_self_consistency(question: str, topic_ref: str) -> DriftCheckRes
 
     try:
         verdict: ConsistencyVerdict = await judge.a_generate(prompt, schema=ConsistencyVerdict)
-    except Exception:
+    except Exception as exc:
+        print(f"  (self-consistency judge failed for {topic_ref}: {type(exc).__name__}: {exc})")
         return DriftCheckResult(
             check_type="self_consistency", question=question, ground_truth_ref=None,
             ground_truth_type=None, expected=None, actual="; ".join(responses),

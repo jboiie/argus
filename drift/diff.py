@@ -106,7 +106,13 @@ async def check_faithfulness(question: str, policy_id: str, claim: str, response
         scorer = Faithfulness(llm=llm_factory(DEFAULT_MODEL, client=_judge_client()))
         result = await scorer.ascore(user_input=question, response=response, retrieved_contexts=contexts)
         score = result.value
-    except Exception:
+    except Exception as exc:
+        # Print the cause rather than swallowing it. A silent `errored` row
+        # tells you a check failed but not why, and a real sampler run put
+        # 2/14 faithfulness checks in that state with nothing to diagnose
+        # from. The row itself still records only the response (the schema
+        # has no error column), so stdout is where the detail has to go.
+        print(f"  (faithfulness check errored for {policy_id}: {type(exc).__name__}: {exc})")
         return DriftCheckResult(
             check_type="faithfulness", question=question, ground_truth_ref=policy_id,
             ground_truth_type="policy", expected=claim, actual=response,
