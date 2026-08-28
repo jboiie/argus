@@ -48,7 +48,7 @@ export default function App() {
     <div className="relative flex min-h-full flex-col lg:flex-row">
       <div className="atmosphere" aria-hidden="true" />
       {/* Rail. Horizontal on small screens, fixed column from lg up. */}
-      <aside className="relative z-10 shrink-0 border-b border-rule bg-chrome/85 backdrop-blur-sm lg:sticky lg:top-0 lg:h-screen lg:w-56 lg:overflow-y-auto lg:border-r lg:border-b-0">
+      <aside className="relative z-10 shrink-0 border-b border-rule bg-transparent lg:sticky lg:top-0 lg:h-screen lg:w-56 lg:overflow-y-auto lg:border-r lg:border-b-0">
         <div className="flex items-center gap-2 px-4 py-4">
           <Eye className="size-5 text-brass" strokeWidth={2} aria-hidden="true" />
           <div>
@@ -108,12 +108,14 @@ export default function App() {
       </aside>
 
       <div className="relative z-10 min-w-0 flex-1">
-        <header className="border-b border-rule px-5 py-3.5">
-          <h1 className="text-lg leading-tight font-semibold text-ink">{active.label}</h1>
-          <p className="mt-0.5 text-xs text-ink-3">{active.blurb}</p>
-        </header>
+        {tab !== "findings" ? (
+          <header className="border-b border-rule px-6 py-4">
+            <h1 className="text-lg leading-tight font-semibold text-ink">{active.label}</h1>
+            <p className="mt-0.5 text-xs text-ink-3">{active.blurb}</p>
+          </header>
+        ) : null}
 
-        <main className="space-y-4 p-5">
+        <main className="space-y-5 px-6 py-6">
           {!isConfigured ? (
             <Note tone="warn">
               <code>VITE_SUPABASE_URL</code> / <code>VITE_SUPABASE_ANON_KEY</code> are not
