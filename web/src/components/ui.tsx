@@ -34,20 +34,42 @@ export function Panel({
   );
 }
 
-/** A record: light archival stock sitting on the dark console. */
+/** A record: light archival stock sitting on the dark console.
+ *  `tilt` files it by hand rather than by grid — a fraction of a degree, which
+ *  is the difference between a document on a desk and a div. */
 export function Record({
   children,
   className = "",
+  tilt,
 }: {
   children: ReactNode;
   className?: string;
+  tilt?: "a" | "b" | "c";
 }) {
   return (
     <article
-      className={`bg-stock text-stock-ink shadow-[0_1px_0_0_var(--color-stock-2),0_10px_24px_-12px_rgba(0,0,0,0.85)] ${className}`}
+      className={`lift bg-stock text-stock-ink ${tilt ? `tilt-${tilt}` : ""} ${className}`}
     >
       {children}
     </article>
+  );
+}
+
+/** Staggered entrance. One orchestrated sequence on load; `delay` is in ms and
+ *  stays small so nothing feels withheld from a reader who came to read. */
+export function Reveal({
+  children,
+  delay = 0,
+  className = "",
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  return (
+    <div className={`reveal ${className}`} style={{ animationDelay: `${delay}ms` }}>
+      {children}
+    </div>
   );
 }
 
