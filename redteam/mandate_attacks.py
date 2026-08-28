@@ -224,21 +224,33 @@ class _AttackEventShim:
         self.reason = f"outcome={result.outcome}; mandates={result.mandate_statuses or 'none'}"
 
 
-def log_to_supabase(results: list[ScenarioResult], label: str) -> str | None:
+def start_run(label: str):
+    """Create the Supabase run BEFORE the scenarios execute, and return its
+    real run_id.
+
+    Order matters: mandates are created while the scenarios run, and
+    `mandates.run_id` is `UUID NOT NULL REFERENCES runs(run_id)`. Passing a
+    readable placeholder like "run_mandate_attacks" makes every mandate
+    insert fail the foreign key, and `_log_mandate_safe`'s fail-open
+    swallows it - so the mandate rows this suite produces never reached
+    Supabase at all and the dashboard's Mandates tab stayed empty. Same
+    class of bug as the session_id slug fixed above, one field over.
+    """
     import os
 
     if not (os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")):
-        return None
-    from telemetry.supabase_client import (
-        create_run,
-        end_run,
-        get_client,
-        log_attack_event,
-        mark_mandate_bypassed,
-    )
+        return None, None
+    from telemetry.supabase_client import create_run, get_client
 
     client = get_client()
-    run_id = create_run(client, run_type="redteam", label=label)
+    return client, create_run(client, run_type="redteam", label=label)
+
+
+def log_to_supabase(results: list[ScenarioResult], client, run_id: str) -> str | None:
+    if client is None:
+        return None
+    from telemetry.supabase_client import end_run, log_attack_event, mark_mandate_bypassed
+
     for result in results:
         if result.name == "control_genuine_confirmation":
             continue  # a validity check on the suite, not an attack
@@ -270,12 +282,15 @@ async def main():
 
     from agent.reference_agent import ask_with_tools
 
-    results = await run_all(ask_with_tools, run_id="run_mandate_attacks")
+    # Run row first - see start_run: mandates are created mid-scenario and
+    # need a real run_id to reference.
+    client, run_id = start_run("mandate_bypass_targeted")
+    results = await run_all(ask_with_tools, run_id=run_id or "run_local_no_supabase")
     summary = summarize(results)
     print_results(results, summary)
 
-    run_id = log_to_supabase(results, label="mandate_bypass_targeted")
-    print(f"\nLogged to Supabase under run_id={run_id}" if run_id
+    logged = log_to_supabase(results, client, run_id)
+    print(f"\nLogged to Supabase under run_id={logged}" if logged
           else "\nSupabase not configured - results not logged.")
 
 

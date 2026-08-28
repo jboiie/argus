@@ -41,8 +41,14 @@ def _log_mandate_safe(mandate) -> None:
     try:
         from telemetry.supabase_client import get_client, log_mandate
         log_mandate(get_client(), mandate)
-    except Exception:
-        pass
+    except Exception as exc:
+        # Fails soft - a Supabase hiccup must never break a live checkout -
+        # but says so. A fully silent except hid a real bug for days: callers
+        # passing a readable placeholder run_id ("run_smoke_test",
+        # "run_mandate_attacks") violate mandates.run_id's UUID foreign key,
+        # so every mandate insert failed and the dashboard's Mandates tab
+        # stayed empty with nothing indicating why.
+        print(f"  (mandate {mandate.mandate_id} not logged: {type(exc).__name__}: {str(exc)[:160]})")
 
 
 def add_to_cart_declaration() -> types.FunctionDeclaration:
