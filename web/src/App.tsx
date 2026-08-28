@@ -10,6 +10,7 @@ import { Mandates as MandatesView } from "./views/Mandates";
 import { LoadingView, Note } from "./components/ui";
 import Dock from "./components/Dock";
 import Shuffle from "./components/Shuffle";
+import { Spotlight } from "./components/Spotlight";
 
 const NAV = [
   { id: "findings", label: "Findings", icon: ShieldAlert, blurb: "What the harness caught" },
@@ -49,6 +50,7 @@ export default function App() {
   return (
     <div className="relative min-h-full">
       <div className="atmosphere" aria-hidden="true" />
+      <Spotlight />
 
       {/* Chrome floats now. A thin mark rather than a header bar — the rail was
           a permanent 224px of furniture competing with the record. */}

@@ -1,0 +1,73 @@
+/* Ambient cursor light. Follows the pointer, brightens near panels, and never
+   intercepts a click. */
+.cursor-spotlight {
+  position: fixed;
+  width: 760px;
+  height: 760px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+  z-index: 5; /* above the atmosphere, below all content and the dock */
+  will-change: transform, opacity;
+}
+
+/* Panels that respond to cursor proximity. The glow rides the border only —
+   an inset mask punches out the middle — so the panel lights up at its edge
+   without washing over the data inside it. */
+.glow-card {
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-intensity: 0;
+  --glow-radius: 340px;
+  position: relative;
+}
+
+.glow-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  background: radial-gradient(
+    var(--glow-radius) circle at var(--glow-x) var(--glow-y),
+    rgba(201, 162, 39, calc(var(--glow-intensity) * 0.9)) 0%,
+    rgba(201, 162, 39, calc(var(--glow-intensity) * 0.35)) 28%,
+    transparent 62%
+  );
+  border-radius: inherit;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* A faint interior wash, well under the border so text keeps its contrast. */
+.glow-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    calc(var(--glow-radius) * 0.8) circle at var(--glow-x) var(--glow-y),
+    rgba(201, 162, 39, calc(var(--glow-intensity) * 0.05)) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor-spotlight {
+    display: none;
+  }
+  .glow-card::after,
+  .glow-card::before {
+    display: none;
+  }
+}

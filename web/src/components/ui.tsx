@@ -17,9 +17,9 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={`border border-rule bg-chrome ${className}`}>
+    <section className={`glow-card border border-rule bg-chrome ${className}`}>
       {title ? (
-        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-rule px-4 py-3">
+        <header className="relative z-[1] flex flex-wrap items-start justify-between gap-3 border-b border-rule px-4 py-3">
           <div>
             <h2 className="font-mono text-xs font-semibold tracking-[0.14em] text-brass uppercase">
               {title}
@@ -29,7 +29,7 @@ export function Panel({
           {right}
         </header>
       ) : null}
-      <div className="p-4">{children}</div>
+      <div className="relative z-[1] p-4">{children}</div>
     </section>
   );
 }
@@ -96,7 +96,7 @@ export function Stamp({ verdict }: { verdict: string }) {
 
 export function StatStrip({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-2 divide-x divide-y divide-rule border border-rule bg-chrome lg:grid-cols-4 lg:divide-y-0">
+    <div className="glow-card grid grid-cols-2 divide-x divide-y divide-rule border border-rule bg-chrome lg:grid-cols-4 lg:divide-y-0">
       {children}
     </div>
   );
@@ -121,7 +121,7 @@ export function Stat({
     brand: "text-brass",
   }[tone];
   return (
-    <div className="px-4 py-3" title={hint}>
+    <div className="relative z-[1] px-4 py-3" title={hint}>
       <div className="font-mono text-2xs tracking-[0.14em] text-ink-3 uppercase">{label}</div>
       <div className={`tnum mt-1.5 text-2xl leading-none font-semibold ${toneClass}`}>{value}</div>
       {hint ? <div className="mt-1.5 text-2xs leading-snug text-ink-3">{hint}</div> : null}
