@@ -1,9 +1,10 @@
 import type { Run } from "../lib/types";
+import { Select } from "./ui";
 
 /**
- * Runs differ in simulator model, in code version, and in how much API quota
- * was left when they executed. Blending every run ever logged into one number
- * isn't something a reader can interpret, so the view can be scoped to one.
+ * Runs differ in simulator model, code version, and how much API quota was
+ * left when they executed. Blending every run ever logged into one number is
+ * not something a reader can interpret, so a view can be scoped to one.
  */
 export function RunSelector({
   runs,
@@ -16,12 +17,13 @@ export function RunSelector({
 }) {
   if (runs.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <label className="text-[11px] font-medium uppercase tracking-wider text-ink-dim">Run</label>
-      <select
-        className="min-w-72 rounded-lg border border-edge bg-ground px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+    <div className="flex items-center gap-2">
+      <span className="text-2xs font-medium tracking-[0.08em] text-ink-3 uppercase">Run</span>
+      <Select
+        label="Filter by run"
+        className="min-w-72"
         value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
+        onChange={(v) => onChange(v || null)}
       >
         <option value="">All runs (cumulative)</option>
         {runs.map((r) => (
@@ -29,7 +31,7 @@ export function RunSelector({
             {r.started_at.slice(0, 16).replace("T", " ")} — {r.label}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -12,16 +13,34 @@ import {
 } from "recharts";
 import { computeFalsePositiveCost, driftCauseBreakdown, driftIncidentsOverTime } from "../lib/data";
 import type { DriftIncident, Run } from "../lib/types";
-import { Badge, Empty, Metric, Panel, SectionTitle, Untrusted } from "../components/ui";
+import {
+  Empty,
+  Panel,
+  Select,
+  Stat,
+  StatStrip,
+  Tag,
+  Td,
+  Th,
+  Untrusted,
+} from "../components/ui";
 import { Conversation } from "../components/Conversation";
 import { RunSelector } from "../components/RunSelector";
 
 const TOOLTIP = {
-  background: "#131c2e",
-  border: "1px solid #22304a",
-  borderRadius: 8,
-  color: "#e6edf7",
+  background: "#141a24",
+  border: "1px solid #262f3d",
+  borderRadius: 3,
+  color: "#e7e9ec",
+  fontSize: 12,
+  fontFamily: '"IBM Plex Mono", monospace',
 };
+const AXIS = { fill: "#67717f", fontSize: 11, fontFamily: '"IBM Plex Mono", monospace' };
+
+/** A line chart needs a trend to show. Below four points there is no trend,
+ *  only noise dressed as one - the guidance is explicit that a stat/table
+ *  beats a line here, and an almost-empty chart reads as missing data. */
+const MIN_POINTS_FOR_LINE = 4;
 
 export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: Run[] }) {
   const [runId, setRunId] = useState<string | null>(null);
@@ -37,82 +56,148 @@ export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: R
   const timeline = useMemo(() => driftIncidentsOverTime(scoped), [scoped]);
   const causes = useMemo(() => driftCauseBreakdown(scoped), [scoped]);
   const cost = useMemo(() => computeFalsePositiveCost(scoped), [scoped]);
-
   const row = flagged.find((i) => i.incident_id === selected) ?? flagged[0];
 
   if (incidents.length === 0)
-    return <Empty>No drift incidents logged yet — run <code>drift/sampler.py</code>.</Empty>;
+    return <Empty>No drift incidents logged yet — run drift/sampler.py</Empty>;
 
   return (
-    <div className="space-y-6">
-      <RunSelector runs={runs.filter((r) => r.run_type === "drift_sample")} value={runId} onChange={(v) => { setRunId(v); setSelected(null); }} />
+    <div className="space-y-4">
+      <RunSelector
+        runs={runs.filter((r) => r.run_type === "drift_sample")}
+        value={runId}
+        onChange={(v) => {
+          setRunId(v);
+          setSelected(null);
+        }}
+      />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Checks run" value={scoped.length} />
-        <Metric label="Flagged" value={flagged.length} tone={flagged.length ? "errored" : "default"} />
-        <Metric
+      <StatStrip>
+        <Stat label="Checks run" value={scoped.length} />
+        <Stat label="Flagged" value={flagged.length} tone={flagged.length ? "errored" : "default"} />
+        <Stat
           label="Flag rate"
           value={scoped.length ? `${((flagged.length / scoped.length) * 100).toFixed(1)}%` : "—"}
+          tone="brand"
         />
-        <Metric label="Errored" value={erroredCount} hint="Never completed — flagged is null, not false" />
+        <Stat
+          label="Errored"
+          value={erroredCount}
+          hint="Never completed — flagged is null, not false"
+        />
+      </StatStrip>
+
+      <div className="grid items-start gap-4 xl:grid-cols-2">
+        <Panel
+          title="Checks over time"
+          sub={
+            timeline.length < MIN_POINTS_FOR_LINE
+              ? "Too few days for a trend line — shown as a table until there are at least four."
+              : "Total checks vs. flagged, per day. Read across build days, not within one batch."
+          }
+        >
+          {timeline.length < MIN_POINTS_FOR_LINE ? (
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <Th>Day</Th>
+                  <Th align="right">Checks</Th>
+                  <Th align="right">Flagged</Th>
+                  <Th align="right">Rate</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {timeline.map((d) => (
+                  <tr key={d.day} className="transition-colors duration-150 hover:bg-chrome-2">
+                    <Td mono>{d.day}</Td>
+                    <Td align="right" mono>{d.total}</Td>
+                    <Td align="right" mono className={d.flagged ? "text-caution-soft" : "text-ink-3"}>
+                      {d.flagged}
+                    </Td>
+                    <Td align="right" mono className="text-ink-3">
+                      {((d.flagged / d.total) * 100).toFixed(0)}%
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={timeline} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid stroke="#262f3d" strokeDasharray="2 4" vertical={false} />
+                  <XAxis dataKey="day" tick={AXIS} tickLine={false} axisLine={{ stroke: "#262f3d" }} />
+                  <YAxis tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={TOOLTIP} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: "#67717f" }} />
+                  {/* Solid vs dashed, not colour alone - colourblind-safe. */}
+                  <Line type="monotone" dataKey="total" name="checks" stroke="#c9a227" strokeWidth={2} dot={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="flagged"
+                    name="flagged"
+                    stroke="#c8322e"
+                    strokeWidth={2}
+                    strokeDasharray="5 3"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Panel>
+
+        <Panel
+          title="Drift cause"
+          sub="Flagged only. Classified rule-based: stale_ground_truth is a git-history lookup against the file's real past values; fabrication is a value that never existed."
+        >
+          {causes.length === 0 ? (
+            <Empty>Nothing flagged in this run.</Empty>
+          ) : (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={causes} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
+                  <CartesianGrid stroke="#262f3d" strokeDasharray="2 4" horizontal={false} />
+                  <XAxis type="number" tick={AXIS} allowDecimals={false} tickLine={false} axisLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="cause"
+                    tick={AXIS}
+                    tickLine={false}
+                    axisLine={false}
+                    width={140}
+                  />
+                  <Tooltip contentStyle={TOOLTIP} cursor={{ fill: "#1b2330" }} />
+                  <Bar dataKey="count" fill="#8a6f1b" barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Panel>
       </div>
 
-      <Panel>
-        <SectionTitle sub="Total checks vs. flagged, per day. Meant to be read across build days, not within one batch.">
-          Incidents over time
-        </SectionTitle>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={timeline} margin={{ top: 8, right: 12, left: -16, bottom: 4 }}>
-              <CartesianGrid stroke="#22304a" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="day" tick={{ fill: "#93a4bf", fontSize: 11 }} tickLine={false} />
-              <YAxis tick={{ fill: "#93a4bf", fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={TOOLTIP} />
-              <Line type="monotone" dataKey="total" stroke="#38bdf8" strokeWidth={2} dot={false} name="checks" />
-              <Line type="monotone" dataKey="flagged" stroke="#fbbf24" strokeWidth={2} dot={false} name="flagged" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </Panel>
-
-      {causes.length > 0 ? (
-        <Panel>
-          <SectionTitle sub="Flagged only. Classified rule-based, not by an LLM: stale_ground_truth is a git-history lookup against the ground-truth file's real past values; fabrication is a value that never existed.">
-            Drift cause
-          </SectionTitle>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={causes} layout="vertical" margin={{ top: 4, right: 16, left: 40, bottom: 4 }}>
-                <CartesianGrid stroke="#22304a" strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fill: "#93a4bf", fontSize: 11 }} allowDecimals={false} tickLine={false} axisLine={false} />
-                <YAxis type="category" dataKey="cause" tick={{ fill: "#93a4bf", fontSize: 11 }} tickLine={false} axisLine={false} width={130} />
-                <Tooltip contentStyle={TOOLTIP} cursor={{ fill: "#182238" }} />
-                <Bar dataKey="count" fill="#c084fc" radius={[0, 6, 6, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Panel>
-      ) : null}
-
-      <Panel>
-        <SectionTitle>False-positive cost</SectionTitle>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric label="Flagged" value={cost.total_flagged} />
-          <Metric label="Reviewed" value={cost.reviewed} />
-          <Metric label="Confirmed drift" value={cost.true_positives} tone="defended" />
-          <Metric
+      <Panel title="False-positive cost">
+        <StatStrip>
+          <Stat label="Flagged" value={cost.total_flagged} />
+          <Stat label="Reviewed" value={cost.reviewed} />
+          <Stat label="Confirmed drift" value={cost.true_positives} tone="defended" />
+          <Stat
             label="False-positive rate"
-            value={cost.false_positive_rate === null ? "n/a" : `${Math.round(cost.false_positive_rate * 100)}%`}
+            value={
+              cost.false_positive_rate === null
+                ? "n/a"
+                : `${Math.round(cost.false_positive_rate * 100)}%`
+            }
             tone="errored"
           />
-        </div>
+        </StatStrip>
         {cost.pending_review > 0 ? (
-          <p className="mt-3 text-xs text-ink-dim">
-            {cost.pending_review} flagged incident(s) still awaiting review, so the rate is computed
-            over the reviewed subset only.
+          <p className="mt-3 text-2xs text-ink-3">
+            {cost.pending_review} flagged incident(s) awaiting review — the rate is computed over the
+            reviewed subset only.
           </p>
         ) : null}
-        <p className="mt-3 text-xs leading-relaxed text-ink-dim">
+        <p className="mt-2 text-2xs leading-relaxed text-ink-3">
           Review cost is modelled at 1 unit per flagged incident. The assumption that a missed drift
           costs several times more is stated explicitly and is <strong>not</strong> measured — there
           is no ground truth on what should have been flagged but wasn't. It is the stated reason
@@ -120,53 +205,55 @@ export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: R
         </p>
       </Panel>
 
-      <Panel>
-        <SectionTitle>Audit trail</SectionTitle>
-        {flagged.length === 0 ? (
-          <p className="text-sm text-ink-dim">No flagged incidents to inspect in this run.</p>
-        ) : (
-          <>
-            <select
-              className="w-full rounded-lg border border-edge bg-ground px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+      <Panel
+        title="Audit trail"
+        right={
+          flagged.length > 0 ? (
+            <Select
+              label="Select a flagged incident to inspect"
+              className="max-w-md min-w-64"
               value={row?.incident_id ?? ""}
-              onChange={(e) => setSelected(e.target.value)}
+              onChange={setSelected}
             >
               {flagged.map((i) => (
                 <option key={i.incident_id} value={i.incident_id}>
-                  {i.check_type} · {i.ground_truth_ref ?? "(uncovered)"} · {i.question.slice(0, 60)}
+                  {i.check_type} · {i.ground_truth_ref ?? "(uncovered)"} · {i.question.slice(0, 44)}
                 </option>
               ))}
-            </select>
-
-            {row ? (
-              <div className="mt-4 rounded-lg border border-edge bg-ground/40 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="font-semibold text-ink">
-                      {row.check_type} · <code className="text-accent-dim">{row.ground_truth_ref ?? "no ref"}</code>
-                    </div>
-                    <div className="text-xs text-ink-dim">
-                      cause: {row.drift_cause ?? "unclassified"}
-                      {row.score !== null ? ` · score: ${row.score.toFixed(2)}` : ""} · review:{" "}
-                      {row.is_false_positive === false
-                        ? "confirmed drift"
-                        : row.is_false_positive
-                          ? "false positive"
-                          : "unreviewed"}
-                    </div>
-                  </div>
-                  {row.severity ? <Badge tone={row.severity}>{row.severity}</Badge> : null}
+            </Select>
+          ) : null
+        }
+      >
+        {flagged.length === 0 ? (
+          <Empty>No flagged incidents to inspect in this run.</Empty>
+        ) : row ? (
+          <>
+            <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2 border-b border-rule pb-3">
+              <div>
+                <div className="text-sm font-semibold text-ink">
+                  {row.check_type} ·{" "}
+                  <code className="tnum text-brass">{row.ground_truth_ref ?? "no ref"}</code>
                 </div>
-                <Untrusted label="Question" value={row.question} />
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Untrusted label="Expected (ground truth at check time)" value={row.expected} />
-                  <Untrusted label="Actual (agent answer)" value={row.actual} />
+                <div className="tnum mt-1 text-2xs text-ink-3">
+                  cause: {row.drift_cause ?? "unclassified"}
+                  {row.score !== null ? ` · score ${row.score.toFixed(2)}` : ""} ·{" "}
+                  {row.is_false_positive === false
+                    ? "confirmed drift"
+                    : row.is_false_positive
+                      ? "false positive"
+                      : "unreviewed"}
                 </div>
-                <Conversation sessionId={row.session_id} />
               </div>
-            ) : null}
+              {row.severity ? <Tag tone={row.severity}>{row.severity}</Tag> : null}
+            </div>
+            <Untrusted label="Question" value={row.question} />
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <Untrusted label="Expected · ground truth at check time" value={row.expected} />
+              <Untrusted label="Actual · agent answer" value={row.actual} />
+            </div>
+            <Conversation sessionId={row.session_id} />
           </>
-        )}
+        ) : null}
       </Panel>
     </div>
   );

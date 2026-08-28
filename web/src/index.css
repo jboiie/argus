@@ -1,23 +1,57 @@
 @import "tailwindcss";
 
-/* Monitoring-console palette. Near-black navy ground, one cool accent for
-   interactive elements, and semantic red/green/amber reserved for outcomes
-   (bypassed / defended / errored) so colour always carries meaning rather
-   than decoration. Mirrors the theme the Streamlit version used, so the
-   two look like the same product during the migration. */
+/* ─────────────────────────────────────────────────────────────────────────
+ * Argus — "Interrogation Record"
+ *
+ * Argus is a watcher that keeps records. Its characteristic artifact is not a
+ * KPI tile, it is the transcript: a manipulation attempt, the agent's answer,
+ * and a verdict. So the evidence is the hero, and the interface around it is
+ * the quiet console that files it.
+ *
+ * Two grounds, on purpose. The console is a dark void; the records sitting on
+ * it are light archival stock. Most dashboards are uniformly dark or uniformly
+ * light — the inversion is what makes a transcript read as a physical document
+ * rather than another panel.
+ *
+ * Brass, not blue. Every developer console reaches for cyan or indigo; brass
+ * is Argus's hundred watchful eyes, and it stays rare enough to mean something.
+ * ───────────────────────────────────────────────────────────────────────── */
 @theme {
-  --color-ground: #0a0f1c;
-  --color-panel: #131c2e;
-  --color-panel-2: #182238;
-  --color-edge: #22304a;
-  --color-ink: #e6edf7;
-  --color-ink-dim: #93a4bf;
-  --color-accent: #38bdf8;
-  --color-accent-dim: #7dd3fc;
-  --color-bypassed: #f87171;
-  --color-defended: #4ade80;
-  --color-errored: #fbbf24;
-  --color-violet: #c084fc;
+  /* Console */
+  --color-void: #0b0e14;
+  --color-chrome: #141a24;
+  --color-chrome-2: #1b2330;
+  --color-rule: #262f3d;
+  --color-rule-soft: #1d2634;
+
+  /* Console text */
+  --color-ink: #e7e9ec;
+  --color-ink-2: #9aa4b2;
+  --color-ink-3: #67717f;
+
+  /* Record — archival stock, cool and grey-green, not warm cream */
+  --color-stock: #dce2dd;
+  --color-stock-2: #cdd5cf;
+  --color-stock-ink: #1a1f24;
+  --color-stock-ink-2: #4d5761;
+
+  /* Brass — the watcher's accent. Used sparingly. */
+  --color-brass: #c9a227;
+  --color-brass-dim: #8a6f1b;
+
+  /* Verdicts */
+  --color-signal: #c8322e;
+  --color-signal-soft: #e8615c;
+  --color-verdict: #3f7d52;
+  --color-verdict-soft: #6aad7e;
+  --color-caution: #b3781f;
+  --color-caution-soft: #dda43f;
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "IBM Plex Serif", ui-serif, Georgia, serif;
+
+  --text-2xs: 0.6875rem;
 }
 
 html,
@@ -27,33 +61,81 @@ body,
 }
 
 body {
-  background-color: var(--color-ground);
+  background-color: var(--color-void);
   color: var(--color-ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Untrusted text (attack prompts, agent responses, judge reasoning, session
-   turns) renders inside these. Monospace and wrapped so a payload written to
-   look like markup reads as literal text. React escapes by default and this
-   app never uses dangerouslySetInnerHTML - see DataModel.md's rule. */
+/* Data, ids, counts. Aligned columns that never reflow while updating. */
+.tnum {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The attacker's own words. Set as testimony — serif italic — so social
+   engineering never wears the same clothes as machine output. */
+.testimony {
+  font-family: var(--font-serif);
+  font-style: italic;
+}
+
+/* Attacker-authored text renders literally. React escapes by default and this
+   app never uses dangerouslySetInnerHTML — the monospace block makes that
+   visible to the reader too. */
 .untrusted {
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
+}
+
+/* SIGNATURE — the verdict stamp. Struck across a record the way a clerk marks
+   a file: outlined, letterspaced, tilted, slightly worn. */
+.stamp {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  border: 2px solid currentColor;
+  padding: 0.2rem 0.6rem 0.15rem;
+  transform: rotate(-4deg);
+  opacity: 0.92;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+:where(a, button, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brass);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-ground);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-edge);
-  border-radius: 6px;
+  background: var(--color-rule);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2f4066;
+  background: #34404f;
 }

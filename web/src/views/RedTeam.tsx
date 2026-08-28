@@ -1,11 +1,23 @@
 import { useMemo, useState } from "react";
 import { computeAsrByCategory } from "../lib/data";
 import type { AttackEvent, Run } from "../lib/types";
-import { Badge, Empty, Metric, Note, Panel, SectionTitle, Untrusted } from "../components/ui";
+import {
+  Empty,
+  Note,
+  Panel,
+  ScrollX,
+  Select,
+  Stamp,
+  Stat,
+  StatStrip,
+  Td,
+  Th,
+  Untrusted,
+} from "../components/ui";
 import { Conversation } from "../components/Conversation";
 import { RunSelector } from "../components/RunSelector";
 
-const OUTCOME_RANK: Record<string, number> = { bypassed: 0, errored: 1, defended: 2 };
+const RANK: Record<string, number> = { bypassed: 0, errored: 1, defended: 2 };
 
 export function RedTeam({ events, runs }: { events: AttackEvent[]; runs: Run[] }) {
   const [runId, setRunId] = useState<string | null>(null);
@@ -23,12 +35,11 @@ export function RedTeam({ events, runs }: { events: AttackEvent[]; runs: Run[] }
   const scored = bypassed + defended;
   const overall = scored ? (bypassed / scored) * 100 : 0;
 
-  // Bypasses first - they are what anyone opens this page to read.
   const ordered = useMemo(
     () =>
       [...scoped].sort(
         (a, b) =>
-          (OUTCOME_RANK[a.outcome] ?? 3) - (OUTCOME_RANK[b.outcome] ?? 3) ||
+          (RANK[a.outcome] ?? 3) - (RANK[b.outcome] ?? 3) ||
           a.vulnerability.localeCompare(b.vulnerability),
       ),
     [scoped],
@@ -36,113 +47,141 @@ export function RedTeam({ events, runs }: { events: AttackEvent[]; runs: Run[] }
   const row = ordered.find((e) => e.attack_id === selected) ?? ordered[0];
 
   if (events.length === 0)
-    return <Empty>No attack events logged yet — run <code>redteam/run_full.py</code>.</Empty>;
+    return <Empty>No attack events logged yet — run redteam/run_full.py</Empty>;
 
   return (
-    <div className="space-y-6">
-      <RunSelector runs={runs.filter((r) => r.run_type === "redteam")} value={runId} onChange={(v) => { setRunId(v); setSelected(null); }} />
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Attempts" value={bypassed + defended + errored} />
-        <Metric label="Scored" value={scored} hint="Errored attempts are excluded from the rate — they never got a real answer" />
-        <Metric label="Bypassed" value={bypassed} tone={bypassed ? "bypassed" : "default"} />
-        <Metric label="Attack Success Rate" value={`${overall.toFixed(2)}%`} />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <RunSelector
+          runs={runs.filter((r) => r.run_type === "redteam")}
+          value={runId}
+          onChange={(v) => {
+            setRunId(v);
+            setSelected(null);
+          }}
+        />
       </div>
+
+      <StatStrip>
+        <Stat label="Attempts" value={bypassed + defended + errored} />
+        <Stat
+          label="Scored"
+          value={scored}
+          hint="Errored attempts never got a real answer, so they are excluded from the rate"
+        />
+        <Stat label="Bypassed" value={bypassed} tone={bypassed ? "bypassed" : "default"} />
+        <Stat label="Attack success rate" value={`${overall.toFixed(2)}%`} tone="brand" />
+      </StatStrip>
 
       {bypassed > 0 ? (
         <Note tone="warn">
-          <strong>Read every bypass before believing it.</strong> DeepTeam's framework criteria
-          carry no knowledge of this agent's scope, so a correct refusal can score as a failure —
-          logged examples include the agent declining an off-topic question and being marked down
-          for it. The four commerce vulnerabilities don't have this problem: their criteria are
-          written against this repo's own catalog, policies and mandate rules.
+          <strong className="text-ink">Read every bypass before believing it.</strong> DeepTeam's
+          framework criteria carry no knowledge of this agent's scope, so a correct refusal can
+          score as a failure — logged examples include the agent declining an off-topic question and
+          being marked down for it. The four commerce vulnerabilities don't have this problem: their
+          criteria are written against this repo's own catalog, policies and mandate rules.
         </Note>
       ) : null}
 
-      <Panel>
-        <SectionTitle sub="One row per vulnerability type, each labelled with its OWASP ASI code.">
-          Attack Success Rate by category
-        </SectionTitle>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+      <Panel title="Attack success rate by category" sub="One row per vulnerability type, labelled with its OWASP ASI code.">
+        <ScrollX label="Attack success rate by category">
+          <table className="w-full min-w-[760px] border-collapse">
+            <caption className="sr-only">
+              Attack success rate per vulnerability type with attempts, bypassed, defended and
+              errored counts
+            </caption>
             <thead>
-              <tr className="border-b border-edge text-left text-[11px] uppercase tracking-wider text-ink-dim">
-                <th className="py-2 pr-3 font-medium">ASI</th>
-                <th className="py-2 pr-3 font-medium">Vulnerability</th>
-                <th className="py-2 pr-3 font-medium">Type</th>
-                <th className="py-2 pr-3 text-right font-medium">Att.</th>
-                <th className="py-2 pr-3 text-right font-medium">Byp.</th>
-                <th className="py-2 pr-3 text-right font-medium">Def.</th>
-                <th className="py-2 pr-3 text-right font-medium">Err.</th>
-                <th className="py-2 pl-3 font-medium">ASR</th>
+              <tr>
+                <Th>ASI</Th>
+                <Th>Vulnerability</Th>
+                <Th>Type</Th>
+                <Th align="right" title="Attempts">Att</Th>
+                <Th align="right" title="Bypassed">Byp</Th>
+                <Th align="right" title="Defended">Def</Th>
+                <Th align="right" title="Errored">Err</Th>
+                <Th>ASR</Th>
               </tr>
             </thead>
             <tbody>
               {asr.map((r) => (
                 <tr
                   key={`${r.vulnerability}-${r.vulnerability_type}`}
-                  className="border-b border-edge/40 hover:bg-panel-2/60"
+                  className="transition-colors duration-150 hover:bg-chrome-2"
                 >
-                  <td className="py-2 pr-3 whitespace-nowrap text-ink-dim">{r.asi_category ?? "—"}</td>
-                  <td className="py-2 pr-3">{r.vulnerability}</td>
-                  <td className="py-2 pr-3 text-ink-dim">{r.vulnerability_type}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{r.attempts}</td>
-                  <td className={`py-2 pr-3 text-right tabular-nums ${r.bypassed ? "text-bypassed" : ""}`}>{r.bypassed}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums text-defended">{r.defended}</td>
-                  <td className={`py-2 pr-3 text-right tabular-nums ${r.errored ? "text-errored" : "text-ink-dim"}`}>{r.errored}</td>
-                  <td className="py-2 pl-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-edge">
+                  <Td mono className="whitespace-nowrap text-ink-3">{r.asi_category ?? "—"}</Td>
+                  <Td className="text-ink">{r.vulnerability}</Td>
+                  <Td mono className="text-ink-3">{r.vulnerability_type}</Td>
+                  <Td align="right" mono>{r.attempts}</Td>
+                  <Td align="right" mono className={r.bypassed ? "text-signal-soft" : "text-ink-3"}>
+                    {r.bypassed}
+                  </Td>
+                  <Td align="right" mono className="text-verdict-soft">{r.defended}</Td>
+                  <Td align="right" mono className={r.errored ? "text-caution-soft" : "text-ink-3"}>
+                    {r.errored}
+                  </Td>
+                  <Td>
+                    <div
+                      className="flex items-center gap-2"
+                      role="img"
+                      aria-label={`Attack success rate ${r.asr_pct.toFixed(1)} percent`}
+                    >
+                      <div className="h-1 w-16 overflow-hidden bg-rule">
                         <div
-                          className={`h-full ${r.asr_pct ? "bg-bypassed" : "bg-defended"}`}
-                          style={{ width: `${Math.max(r.asr_pct, r.asr_pct ? 4 : 2)}%` }}
+                          className={`h-full ${r.asr_pct ? "bg-signal" : "bg-verdict"}`}
+                          style={{ width: `${Math.max(r.asr_pct, r.asr_pct ? 6 : 3)}%` }}
                         />
                       </div>
-                      <span className="tabular-nums text-xs text-ink-dim">{r.asr_pct.toFixed(1)}%</span>
+                      <span className="tnum text-2xs text-ink-3">{r.asr_pct.toFixed(1)}%</span>
                     </div>
-                  </td>
+                  </Td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollX>
       </Panel>
 
-      <Panel>
-        <SectionTitle sub="Full prompt, response and judge reasoning behind any single attempt.">
-          Audit trail
-        </SectionTitle>
-        <select
-          className="w-full rounded-lg border border-edge bg-ground px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-          value={row?.attack_id ?? ""}
-          onChange={(e) => setSelected(e.target.value)}
-        >
-          {ordered.map((e) => (
-            <option key={e.attack_id} value={e.attack_id}>
-              {e.outcome.toUpperCase()} · {e.vulnerability} / {e.vulnerability_type} ·{" "}
-              {(e.prompt ?? "").replace(/\s+/g, " ").slice(0, 60)}
-            </option>
-          ))}
-        </select>
-
+      <Panel
+        title="Audit trail"
+        sub="Full prompt, response and judge reasoning behind any single attempt. Bypasses listed first."
+        right={
+          <Select
+            label="Select an attack attempt to inspect"
+            className="max-w-md min-w-64"
+            value={row?.attack_id ?? ""}
+            onChange={setSelected}
+          >
+            {ordered.map((e) => (
+              <option key={e.attack_id} value={e.attack_id}>
+                {e.outcome.toUpperCase()} · {e.vulnerability}/{e.vulnerability_type} ·{" "}
+                {(e.prompt ?? "").replace(/\s+/g, " ").slice(0, 48)}
+              </option>
+            ))}
+          </Select>
+        }
+      >
         {row ? (
-          <div className="mt-4 rounded-lg border border-edge bg-ground/40 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <>
+            <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2 border-b border-rule pb-3">
               <div>
-                <div className="font-semibold text-ink">
+                <div className="text-sm font-semibold text-ink">
                   {row.vulnerability} / {row.vulnerability_type}
                 </div>
-                <div className="text-xs text-ink-dim">
-                  {row.asi_category ?? "no ASI mapping"} · attack method: {row.attack_method ?? "n/a"}
+                <div className="tnum mt-1 text-2xs text-ink-3">
+                  {row.asi_category ?? "no ASI mapping"} · method: {row.attack_method ?? "n/a"}
                 </div>
               </div>
-              <Badge tone={row.outcome}>{row.outcome}</Badge>
+              <Stamp verdict={row.outcome} />
             </div>
-            <Untrusted label="Attack prompt" value={row.prompt} />
-            <Untrusted label="Agent response" value={row.response} />
-            <Untrusted label="Judge reasoning" value={row.reason} />
+            <div className="grid gap-3 lg:grid-cols-2">
+              <Untrusted label="Attack prompt" value={row.prompt} />
+              <Untrusted label="Agent response" value={row.response} />
+            </div>
+            <div className="mt-3">
+              <Untrusted label="Judge reasoning" value={row.reason} />
+            </div>
             <Conversation sessionId={row.session_id} />
-          </div>
+          </>
         ) : null}
       </Panel>
     </div>
