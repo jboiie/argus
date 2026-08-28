@@ -101,11 +101,26 @@ def main():
               f"({row.bypassed} bypassed / {row.defended} defended / {row.errored} errored)")
 
     if supabase:
+        # Guard each row: this loop runs AFTER the whole sweep, so an
+        # unhandled failure here discards ~45 minutes of work and the day's
+        # Gemini quota with it. That is not hypothetical - a transient
+        # `httpx.RemoteProtocolError: Server disconnected` mid-loop lost a
+        # complete 204-case run. One row failing must not take the rest
+        # down; same posture as drift/sampler.py::run_and_log.
+        logged = failed = 0
         for tc in assessment.test_cases:
-            if tc.input:
+            if not tc.input:
+                continue
+            try:
                 log_attack_event(supabase, tc, run_id, session_id_for(tc.input), asi_category=asi_code_for(tc, asi_map))
+                logged += 1
+            except Exception as exc:
+                failed += 1
+                print(f"  (failed to log {tc.vulnerability}/{tc.vulnerability_type}: {type(exc).__name__}: {exc})")
+        if failed:
+            print(f"\nWARNING: {failed} attack events could not be logged (see above); {logged} succeeded.")
         end_run(supabase, run_id)
-        print(f"\nLogged {sum(1 for tc in assessment.test_cases if tc.input)} attack events to Supabase under run_id={run_id}")
+        print(f"\nLogged {logged} attack events to Supabase under run_id={run_id}")
 
 
 if __name__ == "__main__":
