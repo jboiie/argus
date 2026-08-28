@@ -8,6 +8,7 @@ import { RedTeam } from "./views/RedTeam";
 import { Drift } from "./views/Drift";
 import { Mandates as MandatesView } from "./views/Mandates";
 import { LoadingView, Note } from "./components/ui";
+import Dock from "./components/Dock";
 
 const NAV = [
   { id: "findings", label: "Findings", icon: ShieldAlert, blurb: "What the harness caught" },
@@ -45,96 +46,65 @@ export default function App() {
   const active = NAV.find((n) => n.id === tab)!;
 
   return (
-    <div className="relative flex min-h-full flex-col lg:flex-row">
+    <div className="relative min-h-full">
       <div className="atmosphere" aria-hidden="true" />
-      {/* Rail. Horizontal on small screens, fixed column from lg up. */}
-      <aside className="relative z-10 shrink-0 border-b border-rule bg-transparent lg:sticky lg:top-0 lg:h-screen lg:w-56 lg:overflow-y-auto lg:border-r lg:border-b-0">
-        <div className="flex items-center gap-2 px-4 py-4">
-          <Eye className="size-5 text-brass" strokeWidth={2} aria-hidden="true" />
-          <div>
-            <div className="text-[15px] leading-none font-bold tracking-tight text-ink">Argus</div>
-            <div className="mt-1 font-mono text-2xs tracking-[0.16em] text-ink-3 uppercase">
-              Agent QA &amp; Monitoring
-            </div>
-          </div>
-        </div>
 
-        <nav
-          aria-label="Sections"
-          className="flex gap-1 overflow-x-auto px-2 pb-2 lg:flex-col lg:overflow-visible lg:pb-4"
-          onKeyDown={(e) => {
-            const i = NAV.findIndex((n) => n.id === tab);
-            if (e.key === "ArrowDown" || e.key === "ArrowRight")
-              setTab(NAV[(i + 1) % NAV.length].id);
-            if (e.key === "ArrowUp" || e.key === "ArrowLeft")
-              setTab(NAV[(i - 1 + NAV.length) % NAV.length].id);
-          }}
+      {/* Chrome floats now. A thin mark rather than a header bar — the rail was
+          a permanent 224px of furniture competing with the record. */}
+      <div className="relative z-10 flex items-center justify-between px-6 pt-5 sm:px-10">
+        <div className="flex items-center gap-2.5">
+          <Eye className="size-4 text-brass" strokeWidth={2} aria-hidden="true" />
+          <span className="font-mono text-2xs tracking-[0.24em] text-ink-2 uppercase">Argus</span>
+          <span className="hidden h-3 w-px bg-rule sm:block" />
+          <span className="hidden font-mono text-2xs tracking-[0.18em] text-ink-3 uppercase sm:block">
+            {active.blurb}
+          </span>
+        </div>
+        <a
+          className="font-mono text-2xs tracking-[0.14em] text-ink-3 uppercase transition-colors hover:text-brass"
+          href="https://github.com/jboiie/argus"
         >
-          {NAV.map((n) => {
-            const Icon = n.icon;
-            const on = tab === n.id;
-            return (
-              <button
-                key={n.id}
-                onClick={() => setTab(n.id)}
-                aria-current={on ? "page" : undefined}
-                tabIndex={on ? 0 : -1}
-                className={`flex shrink-0 cursor-pointer items-center gap-2.5 px-2.5 py-2 text-left text-[13px] font-medium whitespace-nowrap transition-colors duration-150 lg:w-full ${
-                  on
-                    ? "bg-brass/10 text-brass shadow-[inset_2px_0_0_0_var(--color-brass)]"
-                    : "text-ink-2 hover:bg-chrome-2 hover:text-ink"
-                }`}
-              >
-                <Icon className="size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
-                {n.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="hidden border-t border-rule px-4 py-3 text-2xs leading-relaxed text-ink-3 lg:block">
-          <p>Razorpay AI Builder Buildathon · Open Track</p>
-          <a
-            className="mt-1 inline-block text-brass hover:underline"
-            href="https://github.com/jboiie/argus"
-          >
-            github.com/jboiie/argus
-          </a>
-          <p className="mt-2">
-            Read-only. The anon key is SELECT-only behind row-level security; the service-role key
-            never reaches this app.
-          </p>
-        </div>
-      </aside>
-
-      <div className="relative z-10 min-w-0 flex-1">
-        {tab !== "findings" ? (
-          <header className="border-b border-rule px-6 py-4">
-            <h1 className="text-lg leading-tight font-semibold text-ink">{active.label}</h1>
-            <p className="mt-0.5 text-xs text-ink-3">{active.blurb}</p>
-          </header>
-        ) : null}
-
-        <main className="space-y-5 px-6 py-6">
-          {!isConfigured ? (
-            <Note tone="warn">
-              <code>VITE_SUPABASE_URL</code> / <code>VITE_SUPABASE_ANON_KEY</code> are not
-              configured. Copy <code>.env.example</code> to <code>.env</code> and fill them in.
-            </Note>
-          ) : error ? (
-            <Note tone="bad">Couldn't reach Supabase: {error}</Note>
-          ) : loading ? (
-            <LoadingView />
-          ) : (
-            <>
-              {tab === "findings" ? <Findings incidents={incidents} /> : null}
-              {tab === "redteam" ? <RedTeam events={events} runs={runs} /> : null}
-              {tab === "drift" ? <Drift incidents={incidents} runs={runs} /> : null}
-              {tab === "mandates" ? <MandatesView mandates={mandates} /> : null}
-            </>
-          )}
-        </main>
+          github.com/jboiie/argus
+        </a>
       </div>
+
+      {/* pb-40 clears the dock so no content is ever trapped behind it. */}
+      <main className="relative z-10 px-6 pt-8 pb-40 sm:px-10">
+        {!isConfigured ? (
+          <Note tone="warn">
+            <code>VITE_SUPABASE_URL</code> / <code>VITE_SUPABASE_ANON_KEY</code> are not configured.
+            Copy <code>.env.example</code> to <code>.env</code> and fill them in.
+          </Note>
+        ) : error ? (
+          <Note tone="bad">Couldn't reach Supabase: {error}</Note>
+        ) : loading ? (
+          <LoadingView />
+        ) : (
+          <>
+            {tab === "findings" ? <Findings incidents={incidents} /> : null}
+            {tab === "redteam" ? <RedTeam events={events} runs={runs} /> : null}
+            {tab === "drift" ? <Drift incidents={incidents} runs={runs} /> : null}
+            {tab === "mandates" ? <MandatesView mandates={mandates} /> : null}
+          </>
+        )}
+
+        <p className="mx-auto mt-24 max-w-2xl text-center font-mono text-2xs leading-relaxed text-ink-3">
+          Read-only · anon key is SELECT-only behind row-level security · the service-role key never
+          reaches this app
+        </p>
+      </main>
+
+      <Dock
+        items={NAV.map((n) => {
+          const Icon = n.icon;
+          return {
+            label: n.label,
+            active: tab === n.id,
+            onClick: () => setTab(n.id),
+            icon: <Icon className="size-[18px]" strokeWidth={2} aria-hidden="true" />,
+          };
+        })}
+      />
     </div>
   );
 }

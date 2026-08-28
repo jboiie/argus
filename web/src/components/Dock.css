@@ -1,0 +1,109 @@
+/* Dock, themed to Argus. The stock component ships a purple-black panel with
+   rounded tiles; this uses the console's own surfaces so it reads as part of
+   the instrument rather than a widget dropped on top of it. */
+
+/* The outer element's height is animated by motion so the panel has somewhere
+   to grow when icons magnify. `inset: 0` fights that: with top, bottom AND an
+   explicit height all set, the box collapses to a band and the panel ends up
+   positioned outside its own container, clipping the magnified icons. Anchor
+   to the bottom edge only and let height do its job. */
+.dock-outer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  max-width: 100%;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.dock-panel {
+  position: relative;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: flex-end;
+  width: fit-content;
+  gap: 0.75rem;
+  padding: 0 0.6rem 0.6rem;
+  pointer-events: auto;
+
+  border-radius: 14px;
+  background-color: color-mix(in srgb, var(--color-chrome) 82%, transparent);
+  border: 1px solid var(--color-rule);
+  backdrop-filter: blur(14px) saturate(120%);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 20px 44px -20px rgba(0, 0, 0, 0.95);
+}
+
+.dock-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background-color: var(--color-chrome-2);
+  border: 1px solid var(--color-rule);
+  color: var(--color-ink-2);
+  cursor: pointer;
+  outline: none;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.dock-item:hover {
+  color: var(--color-ink);
+  border-color: color-mix(in srgb, var(--color-brass) 55%, transparent);
+}
+
+/* The dock carries state, not just actions - the current section reads as lit
+   brass, matching the accent used nowhere else in the chrome. */
+.dock-item.is-active {
+  color: var(--color-brass);
+  border-color: color-mix(in srgb, var(--color-brass) 65%, transparent);
+  background-color: color-mix(in srgb, var(--color-brass) 12%, var(--color-chrome-2));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brass) 22%, transparent);
+}
+
+.dock-item:focus-visible {
+  outline: 2px solid var(--color-brass);
+  outline-offset: 2px;
+}
+
+.dock-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-label {
+  position: absolute;
+  top: -1.9rem;
+  left: 50%;
+  width: fit-content;
+  white-space: pre;
+  transform: translateX(-50%);
+
+  border-radius: 5px;
+  border: 1px solid var(--color-rule);
+  background-color: var(--color-void);
+  padding: 0.2rem 0.55rem;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A dock that grows on proximity is decoration for anyone who asked for less
+   motion; keep it usable and still. */
+@media (prefers-reduced-motion: reduce) {
+  .dock-outer {
+    height: auto !important;
+  }
+}
