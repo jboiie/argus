@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* Monitoring-console palette. Near-black navy ground, one cool accent for
+   interactive elements, and semantic red/green/amber reserved for outcomes
+   (bypassed / defended / errored) so colour always carries meaning rather
+   than decoration. Mirrors the theme the Streamlit version used, so the
+   two look like the same product during the migration. */
+@theme {
+  --color-ground: #0a0f1c;
+  --color-panel: #131c2e;
+  --color-panel-2: #182238;
+  --color-edge: #22304a;
+  --color-ink: #e6edf7;
+  --color-ink-dim: #93a4bf;
+  --color-accent: #38bdf8;
+  --color-accent-dim: #7dd3fc;
+  --color-bypassed: #f87171;
+  --color-defended: #4ade80;
+  --color-errored: #fbbf24;
+  --color-violet: #c084fc;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-ground);
+  color: var(--color-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Untrusted text (attack prompts, agent responses, judge reasoning, session
+   turns) renders inside these. Monospace and wrapped so a payload written to
+   look like markup reads as literal text. React escapes by default and this
+   app never uses dangerouslySetInnerHTML - see DataModel.md's rule. */
+.untrusted {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-ground);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-edge);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2f4066;
+}
