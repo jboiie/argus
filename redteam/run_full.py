@@ -43,16 +43,47 @@ def main():
     simulator = GroqModel(DEFAULT_SIMULATOR_MODEL)
     framework = OWASP_ASI_2026()
     asi_map = framework_asi_map(framework)
-    vulnerabilities = framework.vulnerabilities + COMMERCE_VULNERABILITIES
 
-    assessment = red_team(
-        model_callback=make_model_callback(run_id),
-        vulnerabilities=vulnerabilities,
-        simulator_model=simulator,
-        evaluation_model=judge,
-        attacks_per_vulnerability_type=ATTACKS_PER_TYPE,
-        max_concurrent=3,
-    )
+    # Two passes, not one, because the two simulators have wildly different
+    # budgets and DeepTeam applies ONE simulator per red_team() call.
+    #
+    # A CustomVulnerability's own simulator_model is IGNORED when red_team()
+    # is given a global simulator_model - verified directly, not assumed:
+    # mandate_bypass carrying qwen still errored 2/2 on refusal under a
+    # global gpt-oss simulator. So mixing them in one call is impossible.
+    #
+    # Budgets (measured from Groq's own rate-limit headers): gpt-oss-20b is
+    # 250,000 TPM, qwen3.8-27b is 8,000 TPM. Running all ~200 cases through
+    # qwen pins it against that ceiling and the run crawls - a first attempt
+    # spent 50 minutes stuck in attack generation having barely called the
+    # target agent at all. Framework vulnerabilities therefore go through
+    # gpt-oss (fast), and only the 4 commerce vulnerabilities - the ones
+    # gpt-oss refuses to write attacks for - go through qwen, where the
+    # small case count fits the 8K budget comfortably.
+    passes = [
+        ("framework", framework.vulnerabilities, judge),
+        ("commerce", COMMERCE_VULNERABILITIES, simulator),
+    ]
+
+    test_cases = []
+    for name, vulnerabilities, sim in passes:
+        print(f"\n=== {name} pass: {len(vulnerabilities)} vulnerabilities, simulator={sim.get_model_name()}")
+        assessment = red_team(
+            model_callback=make_model_callback(run_id),
+            vulnerabilities=vulnerabilities,
+            simulator_model=sim,
+            evaluation_model=judge,
+            attacks_per_vulnerability_type=ATTACKS_PER_TYPE,
+            max_concurrent=3,
+        )
+        print(f"=== {name} pass produced {len(assessment.test_cases)} test cases")
+        test_cases.extend(assessment.test_cases)
+
+    class _Combined:
+        pass
+
+    assessment = _Combined()
+    assessment.test_cases = test_cases
 
     print(f"\nTotal test cases: {len(assessment.test_cases)}")
     for tc in assessment.test_cases:
