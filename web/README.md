@@ -1,8 +1,8 @@
 # Argus dashboard (web)
 
-Static React dashboard over the Supabase audit trail. Replaces the Streamlit
-app in `dashboard/`, which stays in the repo until this is deployed and
-verified — the public link is a submission requirement and must not gap.
+Static React dashboard over the Supabase audit trail. Replaced the earlier
+Streamlit app, now removed from the repo (see the root `README.md`'s
+Dashboard section for screenshots). Not deployed — run it locally.
 
 ## Why a static SPA and not a backend
 

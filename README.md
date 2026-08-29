@@ -6,7 +6,30 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 
 ## Status
 
-Reference agent, pre-deployment red-team harness, post-deployment drift sentinel, and dashboard all built, deployed, and verified live (PROJECT_DESC.md build steps 1-25). See `BUGS.md` for what broke and how it was fixed along the way.
+Reference agent, pre-deployment red-team harness, and post-deployment drift sentinel all built and verified against live Supabase data. The dashboard is a React SPA (`web/`) that reads Supabase directly on a read-only anon key — run it locally (see below); it isn't deployed, since a public link isn't a requirement for this track. See `BUGS.md` for what broke and how it was fixed along the way.
+
+## Dashboard
+
+Four tabs, all reading the same Supabase tables live: an editorial **Findings** write-up of the headline result, then dense audit-trail tables for **Red Team**, **Drift**, and **Mandates** — each row drills into the full logged conversation behind it.
+
+| Findings | Red Team |
+|---|---|
+| ![Findings tab](docs/screenshots/findings.png) | ![Red Team tab](docs/screenshots/redteam.png) |
+
+| Drift | Mandates |
+|---|---|
+| ![Drift tab](docs/screenshots/drift.png) | ![Mandates tab](docs/screenshots/mandates.png) |
+
+Run it locally:
+
+```
+cd web
+npm install
+cp .env.example .env   # fill in VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
+npm run dev
+```
+
+`web/scripts/verify-rls.mjs` confirms the anon key can read all four tables but a write attempt is rejected by RLS — the same check to re-run after any policy change.
 
 ## Architecture
 
@@ -47,11 +70,12 @@ redteam/  ── Pre-Deployment Engine        drift/  ── Post-Deployment Eng
         leaves the backend scripts
                         │
                         ▼
-              dashboard/  ── Streamlit, read-only
-        Tab 1: ASR by ASI category. Tab 2: drift feed,
-        cause breakdown, false-positive cost. Both tabs
-        drill into the logged conversation behind any
-        selected incident.
+              web/  ── React + Vite + Tailwind, read-only
+        Findings / Red Team / Drift / Mandates tabs, backend-
+        free — the browser talks to Supabase directly on the
+        anon key, RLS is the only access control. Every tab
+        drills into the logged conversation behind any
+        selected attack, incident, or mandate.
 ```
 
 The mandate layer is the one piece that ties the two engines together: it's the concrete thing Track 01's "every money action explainable, bounded and gated" bar demands, and it's also the specific surface the red-team harness's `mandate_bypass` custom vulnerability targets — the same gate gets tested from both directions.
