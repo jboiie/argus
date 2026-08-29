@@ -34,7 +34,7 @@ export function Mandates({ mandates }: { mandates: Mandate[] }) {
   const row = mandates.find((m) => m.mandate_id === selected) ?? mandates[0];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <StatStrip>
         <Stat label="Authorized" value={authorized} tone="defended" />
         <Stat label="Denied" value={denied} tone="errored" />

@@ -54,7 +54,7 @@ export default function App() {
 
       {/* Chrome floats now. A thin mark rather than a header bar — the rail was
           a permanent 224px of furniture competing with the record. */}
-      <div className="relative z-10 flex items-center justify-between px-6 pt-5 sm:px-10">
+      <div className="relative z-10 mx-auto flex max-w-[1400px] items-center justify-between px-6 pt-5 sm:px-12 lg:px-16">
         <div className="flex items-center gap-2.5">
           <Eye className="size-4 text-brass" strokeWidth={2} aria-hidden="true" />
           <Shuffle
@@ -85,7 +85,7 @@ export default function App() {
       </div>
 
       {/* pb-40 clears the dock so no content is ever trapped behind it. */}
-      <main className="relative z-10 px-6 pt-8 pb-40 sm:px-10">
+      <main className="relative z-10 mx-auto max-w-[1400px] px-6 pt-8 pb-40 sm:px-12 lg:px-16">
         {!isConfigured ? (
           <Note tone="warn">
             <code>VITE_SUPABASE_URL</code> / <code>VITE_SUPABASE_ANON_KEY</code> are not configured.

@@ -17,7 +17,7 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={`glow-card border border-rule bg-chrome ${className}`}>
+    <section className={`glow-card rounded-2xl border border-rule bg-chrome ${className}`}>
       {title ? (
         <header className="relative z-[1] flex flex-wrap items-start justify-between gap-3 border-b border-rule px-4 py-3">
           <div>
@@ -48,7 +48,7 @@ export function Record({
 }) {
   return (
     <article
-      className={`lift bg-stock text-stock-ink ${tilt ? `tilt-${tilt}` : ""} ${className}`}
+      className={`lift rounded-xl bg-stock text-stock-ink ${tilt ? `tilt-${tilt}` : ""} ${className}`}
     >
       {children}
     </article>
@@ -96,7 +96,7 @@ export function Stamp({ verdict }: { verdict: string }) {
 
 export function StatStrip({ children }: { children: ReactNode }) {
   return (
-    <div className="glow-card grid grid-cols-2 divide-x divide-y divide-rule border border-rule bg-chrome lg:grid-cols-4 lg:divide-y-0">
+    <div className="glow-card grid grid-cols-2 divide-x divide-y divide-rule rounded-2xl border border-rule bg-chrome lg:grid-cols-4 lg:divide-y-0">
       {children}
     </div>
   );
@@ -161,7 +161,7 @@ export function Untrusted({ label, value }: { label: string; value: unknown }) {
   return (
     <div>
       <div className="mb-1 font-mono text-2xs tracking-[0.14em] text-ink-3 uppercase">{label}</div>
-      <pre className="untrusted max-h-56 overflow-auto border border-rule-soft bg-void p-2.5 text-xs leading-relaxed text-ink-2">
+      <pre className="untrusted max-h-56 overflow-auto rounded-lg border border-rule-soft bg-void p-2.5 text-xs leading-relaxed text-ink-2">
         {text}
       </pre>
     </div>
@@ -182,7 +182,7 @@ export function Note({
   }[tone];
   return (
     <div
-      className={`border border-rule border-l-2 bg-chrome px-3.5 py-2.5 text-xs leading-relaxed text-ink-2 ${cls}`}
+      className={`rounded-r-lg border border-rule border-l-2 bg-chrome px-3.5 py-2.5 text-xs leading-relaxed text-ink-2 ${cls}`}
     >
       {children}
     </div>
@@ -191,7 +191,7 @@ export function Note({
 
 export function Empty({ children }: { children: ReactNode }) {
   return (
-    <div className="border border-dashed border-rule px-4 py-8 text-center font-mono text-2xs tracking-wide text-ink-3">
+    <div className="rounded-2xl border border-dashed border-rule px-4 py-8 text-center font-mono text-2xs tracking-wide text-ink-3">
       {children}
     </div>
   );
@@ -209,9 +209,9 @@ export function LoadingView() {
   return (
     <div className="space-y-4" role="status" aria-live="polite" aria-busy="true">
       <span className="sr-only">Loading records…</span>
-      <Skeleton className="h-20 border border-rule" />
-      <Skeleton className="h-64 border border-rule" />
-      <Skeleton className="h-40 border border-rule" />
+      <Skeleton className="h-20 rounded-2xl border border-rule" />
+      <Skeleton className="h-64 rounded-2xl border border-rule" />
+      <Skeleton className="h-40 rounded-2xl border border-rule" />
     </div>
   );
 }

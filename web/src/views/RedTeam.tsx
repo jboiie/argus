@@ -50,7 +50,7 @@ export function RedTeam({ events, runs }: { events: AttackEvent[]; runs: Run[] }
     return <Empty>No attack events logged yet — run redteam/run_full.py</Empty>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <RunSelector
           runs={runs.filter((r) => r.run_type === "redteam")}

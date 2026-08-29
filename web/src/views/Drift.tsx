@@ -62,7 +62,7 @@ export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: R
     return <Empty>No drift incidents logged yet — run drift/sampler.py</Empty>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <RunSelector
         runs={runs.filter((r) => r.run_type === "drift_sample")}
         value={runId}
@@ -87,7 +87,7 @@ export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: R
         />
       </StatStrip>
 
-      <div className="grid items-start gap-4 xl:grid-cols-2">
+      <div className="grid items-start gap-5 xl:grid-cols-2">
         <Panel
           title="Checks over time"
           sub={
