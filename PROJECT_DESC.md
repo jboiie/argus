@@ -74,7 +74,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 - **Graceful degradation on unresolved critical incidents**: each Drift Incident carries a `drift_cause` (`stale_ground_truth` | `fabrication` | `inconsistency`) and `severity` (`critical` | `moderate` — critical when the incident's `ground_truth_ref` touches `Product.price` or a money-relevant Policy). Before answering a question or authorizing a new Mandate that touches a `ground_truth_ref` with an unresolved critical incident (`reviewed_at IS NULL`), the reference agent must decline to confirm the claim or hold the Mandate, rather than repeating the possibly-wrong value. This is the project's one concrete "failure recovery" behavior to demonstrate live — see DataModel.md's Drift Incident entity for the classification logic. Depends on the drift sentinel (steps 16-20) actually running; the agent-side check is implemented alongside that work, not before there's real incident data to check against.
 
 ### 4.5 Unified Dashboard
-- Single Streamlit app, deployed live on **Streamlit Cloud** (public link is a submission requirement).
+- Single Streamlit app, deployed live on **Streamlit Cloud** (public link is a submission requirement). — *Correction, later in the build: razorpay.com/buildathon lists only a public repo, a 5-minute pitch video, and architecture docs as submission requirements — no deployed link. The dashboard was rebuilt as `web/` (React) and is run locally instead; see README.*
 - Two views: pre-deployment report (ASR by category, with ASI labels) + live drift feed (incidents over time).
 - Must show: full audit trail per incident, at least one staged "failure handled gracefully" example (e.g. agent correctly refuses a manipulated request instead of complying — this is also your ASI08 Cascading Failures demo), and the false-positive cost metric.
 
@@ -149,6 +149,6 @@ Keep a running `BUGS.md` (single file — a `Date | Component | Symptom | Root C
 ## 9. Submission Deliverables
 
 1. **Public GitHub repository**: reference agent + harness + drift sentinel + dashboard + README + `BUGS.md`.
-2. **Live dashboard**: Streamlit Cloud, public link, kept alive per Section 5.
+2. ~~**Live dashboard**: Streamlit Cloud, public link, kept alive per Section 5.~~ Not actually required — see the 4.5 correction above. Dashboard runs locally (`web/`), screenshots in README.
 3. **5-minute video** (can be unlisted): cooking/meal-planning analogy; covers the problem, why it matters, the solution, the tech used, key technical decisions, what broke, and how it was fixed.
 4. **README**: setup, architecture, how to reproduce the ASR and drift numbers, and the rule-based-vs-LLM-judged breakdown from Section 5.
