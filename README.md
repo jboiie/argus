@@ -129,6 +129,16 @@ Scoring here is deliberately deterministic, decided off the resulting `Mandate` 
 
 **Reproducing the numbers.** `redteam/run_full.py` runs the full pre-deployment pass (all 61 OWASP_ASI_2026 vulnerability types + 4 custom ones) and logs Attack Success Rate per category to Supabase. `drift/sampler.py` runs a full post-deployment pass (25 checks across products, policy topics, and uncovered questions). `drift/staged_injection.py` (`inject` then `verify`, with a real git commit of the ground-truth edit in between) reproduces the step 19 staged-drift demo specifically. Every module also has a `demo()`/`__main__` self-check runnable on its own — see the module docstrings.
 
+## Known Issues
+
+Full detail and dates for all of these are in `BUGS.md`; this is the subset still worth knowing before you run the harness yourself.
+
+- **Gemini free tier: 500 requests/day, fixed reset at midnight Pacific — not a rolling window.** One full `x3` red-team pass costs ~400 calls, so budget one per day. **Enabling billing on the project deletes the free tier entirely** rather than adding credit on top of it — confirmed the hard way (`BUGS.md` 08-27/08-28). Current setup deliberately keeps billing off and lives within the free tier.
+- **DeepTeam's framework-vulnerability judges carry no knowledge of this agent's scope.** A correct refusal to an off-topic question can score as a disclosure failure — see the Full-sweep results section above. The 4 commerce-specific vulnerabilities don't have this problem, since their criteria are written against this repo's own catalog and policies.
+- **The false-positive cost model is a stated assumption, not a measured one** (`MISSED_DRIFT_ASSUMED_MULTIPLE = 5` in `drift/audit.py`) — see Design Decisions above. The cumulative false-positive rate visible on an unfiltered "all runs" dashboard view is dominated by two since-fixed bugs from early in the build (a unit-parsing bug and a faithfulness-context bug), not by current behavior; use the run selector to scope to a single recent run for a representative number.
+- **Self-consistency's adjacent-question fix (BUGS.md 2026-08-27) is validated but hasn't yet caught a real disagreement.** The check no longer structurally guarantees a pass — the 2026-08-30 validation run shows it giving real, catalog-grounded answers on some questions and correct refusals on others, rather than 5/5 identical refusals — but no run so far has actually produced a flagged self-consistency incident. The mechanism is exercised; a genuine catch just hasn't come up yet.
+- **Razorpay test-mode payment links are capped at 30/business.** Bulk red-team and drift runs stub `create_payment_link` (`Mandate.real_call_fired = False`); only a handful of smoke tests and demo transactions hit the real endpoint.
+
 ## License
 
 MIT — see `LICENSE`.
