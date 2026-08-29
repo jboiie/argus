@@ -1,0 +1,157 @@
+.stepper-outer {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+}
+
+.stepper-frame {
+  width: 100%;
+  max-width: 44rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-rule);
+  background-color: var(--color-chrome);
+}
+
+.stepper-frame > * {
+  position: relative;
+  z-index: 1;
+}
+
+.stepper-indicator-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 1.75rem 1.75rem 0.5rem;
+}
+
+.stepper-content-default {
+  position: relative;
+  overflow: hidden;
+}
+
+.stepper-slide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+}
+
+.stepper-step {
+  padding: 1.5rem 1.75rem 0;
+  min-height: 11rem;
+}
+
+.stepper-footer {
+  padding: 0 1.75rem 1.75rem;
+}
+
+.stepper-footer-nav {
+  margin-top: 1.5rem;
+  display: flex;
+  border-top: 1px solid var(--color-rule);
+  padding-top: 1.25rem;
+}
+
+.stepper-footer-nav.spread {
+  justify-content: space-between;
+}
+
+.stepper-footer-nav.end {
+  justify-content: flex-end;
+}
+
+.stepper-back-button {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+  transition: color 200ms;
+  cursor: pointer;
+}
+
+.stepper-back-button:hover {
+  color: var(--color-ink);
+}
+
+.stepper-next-button {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+  transition: all 200ms;
+}
+
+.stepper-next-button:hover {
+  background-color: var(--color-brass);
+  color: var(--color-void);
+}
+
+.stepper-indicator {
+  position: relative;
+  cursor: pointer;
+  outline: none;
+}
+
+.stepper-indicator-inner {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+.stepper-active-dot {
+  height: 0.6rem;
+  width: 0.6rem;
+  border-radius: 9999px;
+  background-color: var(--color-void);
+}
+
+.stepper-step-number {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.stepper-connector {
+  position: relative;
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+  height: 2px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 2px;
+  background-color: var(--color-rule);
+}
+
+.stepper-connector-inner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+}
+
+.stepper-check-icon {
+  height: 1rem;
+  width: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stepper-indicator-inner,
+  .stepper-connector-inner,
+  .stepper-content-default,
+  .stepper-slide {
+    transition: none !important;
+    animation: none !important;
+  }
+}

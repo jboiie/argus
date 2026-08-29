@@ -10,15 +10,19 @@ Reference agent, pre-deployment red-team harness, and post-deployment drift sent
 
 ## Dashboard
 
-Four tabs, all reading the same Supabase tables live: an editorial **Findings** write-up of the headline result, then dense audit-trail tables for **Red Team**, **Drift**, and **Mandates** — each row drills into the full logged conversation behind it.
+Five tabs, all reading the same Supabase tables live: an **Overview** walkthrough of the whole system in build order, an editorial **Findings** write-up of the headline result, then dense audit-trail tables for **Red Team**, **Drift**, and **Mandates** — each row drills into the full logged conversation behind it.
 
-| Findings | Red Team |
+| Overview | Findings |
 |---|---|
-| ![Findings tab](docs/screenshots/findings.png) | ![Red Team tab](docs/screenshots/redteam.png) |
+| ![Overview tab](docs/screenshots/overview.png) | ![Findings tab](docs/screenshots/findings.png) |
 
-| Drift | Mandates |
+| Red Team | Drift |
 |---|---|
-| ![Drift tab](docs/screenshots/drift.png) | ![Mandates tab](docs/screenshots/mandates.png) |
+| ![Red Team tab](docs/screenshots/redteam.png) | ![Drift tab](docs/screenshots/drift.png) |
+
+| Mandates |
+|---|
+| ![Mandates tab](docs/screenshots/mandates.png) |
 
 Run it locally:
 

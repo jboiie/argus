@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Activity, Eye, ScrollText, ShieldAlert, Wallet } from "lucide-react";
+import { Activity, Compass, Eye, ScrollText, ShieldAlert, Wallet } from "lucide-react";
 import { fetchAttackEvents, fetchDriftIncidents, fetchMandates, fetchRuns } from "./lib/data";
 import { isConfigured } from "./lib/supabase";
 import type { AttackEvent, DriftIncident, Mandate, Run } from "./lib/types";
+import { Overview } from "./views/Overview";
 import { Findings } from "./views/Findings";
 import { RedTeam } from "./views/RedTeam";
 import { Drift } from "./views/Drift";
@@ -13,6 +14,7 @@ import Shuffle from "./components/Shuffle";
 import { Spotlight } from "./components/Spotlight";
 
 const NAV = [
+  { id: "overview", label: "Overview", icon: Compass, blurb: "How Argus works, step by step" },
   { id: "findings", label: "Findings", icon: ShieldAlert, blurb: "What the harness caught" },
   { id: "redteam", label: "Red Team", icon: ScrollText, blurb: "Pre-deployment attack results" },
   { id: "drift", label: "Drift", icon: Activity, blurb: "Post-deployment ground-truth checks" },
@@ -21,7 +23,7 @@ const NAV = [
 type TabId = (typeof NAV)[number]["id"];
 
 export default function App() {
-  const [tab, setTab] = useState<TabId>("findings");
+  const [tab, setTab] = useState<TabId>("overview");
   const [events, setEvents] = useState<AttackEvent[]>([]);
   const [incidents, setIncidents] = useState<DriftIncident[]>([]);
   const [mandates, setMandates] = useState<Mandate[]>([]);
@@ -97,6 +99,7 @@ export default function App() {
           <LoadingView />
         ) : (
           <>
+            {tab === "overview" ? <Overview /> : null}
             {tab === "findings" ? <Findings incidents={incidents} /> : null}
             {tab === "redteam" ? <RedTeam events={events} runs={runs} /> : null}
             {tab === "drift" ? <Drift incidents={incidents} runs={runs} /> : null}
