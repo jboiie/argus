@@ -1,4 +1,5 @@
 .env
+PROJECT_REFERENCE.html
 __pycache__/
 *.pyc
 .venv/
