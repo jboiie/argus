@@ -115,6 +115,45 @@ const SCENARIOS: Record<string, Scenario> = {
       },
     ],
   },
+  stale_policy: {
+    label: "Stale ground truth — policy",
+    checkType: "faithfulness",
+    intro:
+      "The same stale_ground_truth cause, but from a faithfulness check instead of a numeric one — a policy claim gets checked against the shipping policy's own history, not just its current value.",
+    beats: [
+      {
+        kind: "line",
+        label: "Cached answer, re-checked",
+        text: "Standard domestic shipping costs 149 rupees per order.",
+        verdict: {
+          tag: "flagged",
+          cause: "stale_ground_truth",
+          severity: "moderate",
+          note: "matches a prior committed shipping cost, not the current Rs.99",
+        },
+      },
+      {
+        kind: "line",
+        label: "Fresh re-ask, same session",
+        text: "Standard domestic shipping costs Rs.99 per order.",
+        verdict: { tag: "defended", note: "not flagged — reflects the current policy" },
+      },
+    ],
+  },
+  clean: {
+    label: "Clean check (no drift)",
+    checkType: "numeric",
+    intro:
+      "Not every check finds something. Most don't — this is what a normal pass looks like: the agent's answer matches ground truth exactly, nothing flagged.",
+    beats: [
+      {
+        kind: "line",
+        label: "Cached answer, re-checked",
+        text: "The Portable Bluetooth Speaker costs Rs.2199.",
+        verdict: { tag: "defended", note: "matches current ground truth exactly" },
+      },
+    ],
+  },
 };
 
 type CategoryKey = keyof typeof SCENARIOS;
@@ -137,6 +176,7 @@ export function DriftAct({
   const [revealed, setRevealed] = useState<{ label: string; text: string; tone: "ink" | "brass"; verdict?: VerdictInfo }[]>([]);
   const [typing, setTyping] = useState<{ label: string; text: string; tone: "ink" | "brass" } | null>(null);
   const [finalVerdict, setFinalVerdict] = useState<VerdictInfo | null>(null);
+  const [log, setLog] = useState<{ category: string; label: string; verdict: VerdictInfo }[]>([]);
 
   async function play(pickedCategory: CategoryKey) {
     const myRun = ++runId.current;
@@ -170,6 +210,7 @@ export function DriftAct({
         setFinalVerdict(beat.verdict);
         checks += 1;
         if (beat.verdict.tag === "flagged") flagged += 1;
+        setLog((l) => [...l, { category: scenario.label, label: "Result", verdict: beat.verdict }]);
         onUpdate?.({
           category: scenario.label,
           checkType: scenario.checkType,
@@ -192,6 +233,7 @@ export function DriftAct({
       if (beat.verdict) {
         checks += 1;
         if (beat.verdict.tag === "flagged") flagged += 1;
+        setLog((l) => [...l, { category: scenario.label, label: beat.label, verdict: beat.verdict! }]);
         onUpdate?.({
           category: scenario.label,
           checkType: scenario.checkType,
@@ -216,9 +258,8 @@ export function DriftAct({
     setPaused(pausedRef.current);
   }
 
-  const lineChecks = revealed.filter((r) => r.verdict).length + (finalVerdict ? 1 : 0);
-  const lineFlagged =
-    revealed.filter((r) => r.verdict?.tag === "flagged").length + (finalVerdict?.tag === "flagged" ? 1 : 0);
+  const totalChecks = log.length;
+  const totalFlagged = log.filter((l) => l.verdict.tag === "flagged").length;
 
   return (
     <div>
@@ -244,9 +285,13 @@ export function DriftAct({
       </div>
 
       <StatStrip>
-        <Stat label="Checks" value={lineChecks} />
-        <Stat label="Flagged" value={lineFlagged} tone={lineFlagged ? "errored" : "default"} />
-        <Stat label="Flag rate" value={lineChecks ? `${Math.round((lineFlagged / lineChecks) * 100)}%` : "—"} tone="brand" />
+        <Stat label="Checks" value={totalChecks} />
+        <Stat label="Flagged" value={totalFlagged} tone={totalFlagged ? "errored" : "default"} />
+        <Stat
+          label="Flag rate"
+          value={totalChecks ? `${Math.round((totalFlagged / totalChecks) * 100)}%` : "—"}
+          tone="brand"
+        />
         <Stat label="Check type" value={SCENARIOS[category].checkType} />
       </StatStrip>
 
@@ -311,6 +356,29 @@ export function DriftAct({
             ) : null}
           </div>
         </Panel>
+      ) : null}
+
+      {log.length > 0 ? (
+        <>
+          <p className="mt-5 mb-1 font-mono text-2xs tracking-[0.1em] text-ink-3 uppercase">
+            Check log · {log.length} logged this session
+          </p>
+          <table className="w-full border-collapse text-sm">
+            <tbody>
+              {log.map((entry, i) => (
+                <tr key={i} className="border-b border-rule-soft">
+                  <td className="py-1.5 pr-3 text-ink-2">{entry.category}</td>
+                  <td className="py-1.5 pr-3 font-mono text-2xs text-ink-3">
+                    {[entry.verdict.cause, entry.verdict.severity].filter(Boolean).join(" · ") || "—"}
+                  </td>
+                  <td className="py-1.5 text-right">
+                    <Stamp verdict={entry.verdict.tag} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       ) : null}
     </div>
   );
