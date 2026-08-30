@@ -40,7 +40,19 @@ const ATTACKS = [
   },
 ];
 
-export function RedTeamAct({ onComplete }: { onComplete?: () => void }) {
+export interface RedTeamRow {
+  vuln: string;
+  type: string;
+  outcome: string;
+}
+
+export function RedTeamAct({
+  onComplete,
+  onUpdate,
+}: {
+  onComplete?: () => void;
+  onUpdate?: (rows: RedTeamRow[]) => void;
+}) {
   const runId = useRef(0);
   const pausedRef = useRef(false);
   const [paused, setPaused] = useState(false);
@@ -61,7 +73,9 @@ export function RedTeamAct({ onComplete }: { onComplete?: () => void }) {
     setRunning(true);
     setDone(false);
     setAtkRows([]);
+    onUpdate?.([]);
 
+    const rowsAcc: RedTeamRow[] = [];
     for (let i = 0; i < ATTACKS.length; i++) {
       if (ctl.isStale()) return;
       setAtkPrompt("");
@@ -75,7 +89,9 @@ export function RedTeamAct({ onComplete }: { onComplete?: () => void }) {
       setAtkVerdict(ATTACKS[i].outcome);
       await sleep(BEAT_MS, ctl);
       if (ctl.isStale()) return;
-      setAtkRows((r) => [...r, { vuln: ATTACKS[i].vuln, type: ATTACKS[i].type, outcome: ATTACKS[i].outcome }]);
+      rowsAcc.push({ vuln: ATTACKS[i].vuln, type: ATTACKS[i].type, outcome: ATTACKS[i].outcome });
+      setAtkRows([...rowsAcc]);
+      onUpdate?.([...rowsAcc]);
       await sleep(400, ctl);
     }
 

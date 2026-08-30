@@ -10,11 +10,20 @@ import { Controls } from "./RedTeamAct";
  * (self_consistency, three samples of the same question disagree). The
  * dropdown picks which one to demo; picking one plays it immediately. */
 
-interface VerdictInfo {
+export interface VerdictInfo {
   tag: "flagged" | "defended";
   cause?: string;
   severity?: string;
   note: string;
+}
+
+export interface DriftUpdate {
+  category: string;
+  checkType: string;
+  checks: number;
+  flagged: number;
+  lastLabel: string;
+  lastVerdict: VerdictInfo | null;
 }
 
 type Beat =
@@ -110,7 +119,13 @@ const SCENARIOS: Record<string, Scenario> = {
 
 type CategoryKey = keyof typeof SCENARIOS;
 
-export function DriftAct({ onComplete }: { onComplete?: () => void }) {
+export function DriftAct({
+  onComplete,
+  onUpdate,
+}: {
+  onComplete?: () => void;
+  onUpdate?: (u: DriftUpdate) => void;
+}) {
   const runId = useRef(0);
   const pausedRef = useRef(false);
   const [paused, setPaused] = useState(false);
@@ -138,6 +153,10 @@ export function DriftAct({ onComplete }: { onComplete?: () => void }) {
     setFinalVerdict(null);
 
     const scenario = SCENARIOS[pickedCategory];
+    let checks = 0;
+    let flagged = 0;
+    onUpdate?.({ category: scenario.label, checkType: scenario.checkType, checks: 0, flagged: 0, lastLabel: "", lastVerdict: null });
+
     for (const beat of scenario.beats) {
       if (ctl.isStale()) return;
 
@@ -149,6 +168,16 @@ export function DriftAct({ onComplete }: { onComplete?: () => void }) {
 
       if (beat.kind === "verdict") {
         setFinalVerdict(beat.verdict);
+        checks += 1;
+        if (beat.verdict.tag === "flagged") flagged += 1;
+        onUpdate?.({
+          category: scenario.label,
+          checkType: scenario.checkType,
+          checks,
+          flagged,
+          lastLabel: "Result",
+          lastVerdict: beat.verdict,
+        });
         await sleep(500, ctl);
         continue;
       }
@@ -160,6 +189,18 @@ export function DriftAct({ onComplete }: { onComplete?: () => void }) {
       if (ctl.isStale()) return;
       setRevealed((r) => [...r, { label: beat.label, text: beat.text, tone, verdict: beat.verdict }]);
       setTyping(null);
+      if (beat.verdict) {
+        checks += 1;
+        if (beat.verdict.tag === "flagged") flagged += 1;
+        onUpdate?.({
+          category: scenario.label,
+          checkType: scenario.checkType,
+          checks,
+          flagged,
+          lastLabel: beat.label,
+          lastVerdict: beat.verdict,
+        });
+      }
       await sleep(beat.verdict ? 550 : 300, ctl);
     }
 

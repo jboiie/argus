@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Activity, Compass, ScrollText, Wallet } from "lucide-react";
+import { Activity, Compass, ScrollText, ShieldAlert, Wallet } from "lucide-react";
 import Dock from "../../components/Dock";
 import { Overview, type CompletedActs } from "../Overview";
-import { RedTeamAct } from "./RedTeamAct";
-import { DriftAct } from "./DriftAct";
-import { MandateAct } from "./MandateAct";
+import { RedTeamAct, type RedTeamRow } from "./RedTeamAct";
+import { DriftAct, type DriftUpdate } from "./DriftAct";
+import { MandateAct, type MandateUpdate } from "./MandateAct";
+import { DemoFindings } from "./DemoFindings";
 
 /* A traversable mini-dashboard, not one linear scripted page: the same four
  * sections as the real dashboard (Overview / Red Team / Drift / Mandates),
@@ -15,6 +16,7 @@ import { MandateAct } from "./MandateAct";
 
 const DEMO_NAV = [
   { id: "overview", label: "Overview", icon: Compass },
+  { id: "findings", label: "Findings", icon: ShieldAlert },
   { id: "redteam", label: "Red Team", icon: ScrollText },
   { id: "drift", label: "Drift", icon: Activity },
   { id: "mandates", label: "Mandates", icon: Wallet },
@@ -29,6 +31,12 @@ export function Demo({ onExit }: { onExit: () => void }) {
     mandates: false,
   });
 
+  // Lifted here (not owned by the acts) so Findings stays current even after
+  // an act unmounts on tab switch and its own local state resets.
+  const [redteamFindings, setRedteamFindings] = useState<RedTeamRow[]>([]);
+  const [driftFindings, setDriftFindings] = useState<DriftUpdate | null>(null);
+  const [mandateFindings, setMandateFindings] = useState<MandateUpdate>({ denied: false, authorized: false });
+
   return (
     <div className="pb-32">
       <div className="mb-8 flex items-center gap-2.5 border border-caution/50 bg-chrome px-5 py-3">
@@ -39,14 +47,24 @@ export function Demo({ onExit }: { onExit: () => void }) {
       </div>
 
       {tab === "overview" ? <Overview completedActs={completed} /> : null}
+      {tab === "findings" ? (
+        <DemoFindings redteam={redteamFindings} drift={driftFindings} mandate={mandateFindings} />
+      ) : null}
       {tab === "redteam" ? (
-        <RedTeamAct onComplete={() => setCompleted((c) => ({ ...c, redteam: true }))} />
+        <RedTeamAct
+          onComplete={() => setCompleted((c) => ({ ...c, redteam: true }))}
+          onUpdate={setRedteamFindings}
+        />
       ) : null}
       {tab === "drift" ? (
-        <DriftAct onComplete={() => setCompleted((c) => ({ ...c, drift: true }))} />
+        <DriftAct onComplete={() => setCompleted((c) => ({ ...c, drift: true }))} onUpdate={setDriftFindings} />
       ) : null}
       {tab === "mandates" ? (
-        <MandateAct onExit={onExit} onComplete={() => setCompleted((c) => ({ ...c, mandates: true }))} />
+        <MandateAct
+          onExit={onExit}
+          onComplete={() => setCompleted((c) => ({ ...c, mandates: true }))}
+          onUpdate={setMandateFindings}
+        />
       ) : null}
 
       <Dock

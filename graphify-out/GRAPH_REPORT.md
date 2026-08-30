@@ -1,16 +1,16 @@
 # Graph Report - argus  (2026-08-30)
 
 ## Corpus Check
-- 80 files · ~275,736 words
+- 80 files · ~275,924 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 587 nodes · 981 edges · 41 communities (28 shown, 13 thin omitted)
+- 589 nodes · 981 edges · 40 communities (26 shown, 14 thin omitted)
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 39 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ede2c088`
+- Built from commit: `9f316cd9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -47,12 +47,11 @@
 - verify-rls.mjs
 - tsconfig.json
 - supabase_client.py
-- diff.py
+- Dock.tsx
 - cache_data
 - cache_resource
 - DataFrame
 - Series
-- Stepper.tsx
 
 ## God Nodes (most connected - your core abstractions)
 1. `compilerOptions` - 18 edges
@@ -61,8 +60,8 @@
 4. `react` - 16 edges
 5. `compilerOptions` - 15 edges
 6. `execute_tool_call()` - 13 edges
-7. `main()` - 12 edges
-8. `ask_async()` - 12 edges
+7. `ask_async()` - 12 edges
+8. `main()` - 12 edges
 9. `get_client()` - 12 edges
 10. `What You Must Do When Invoked` - 12 edges
 
@@ -81,7 +80,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (41 total, 13 thin omitted)
+## Communities (40 total, 14 thin omitted)
 
 ### Community 0 - "audit.py"
 Cohesion: 0.38
@@ -121,15 +120,15 @@ Nodes (17): 0. Before You Write Any Code, 1. Context & Stakes, 2. The One-Line I
 
 ### Community 13 - "reference_agent.py"
 Cohesion: 0.07
-Nodes (54): add_item(), apply_coupon(), _cart(), clear_cart(), compute_total(), demo(), load_coupons(), load_products() (+46 more)
+Nodes (52): add_item(), apply_coupon(), _cart(), clear_cart(), compute_total(), demo(), load_coupons(), load_products() (+44 more)
 
 ### Community 14 - "razorpay_mcp.py"
 Cohesion: 0.43
 Nodes (6): _auth_header(), call_tool(), demo(), list_tools(), MCP client wiring against Razorpay's remote MCP server. Connects with the…, Read-only: returns the names of tools Razorpay's MCP server exposes.
 
 ### Community 15 - "DriftAct.tsx"
-Cohesion: 0.08
-Nodes (27): DockItemData, Hoverable, Reveal(), Stamp(), rawSleep(), RunCtl, sleep(), typeInto() (+19 more)
+Cohesion: 0.07
+Nodes (28): Step(), StepperProps, stepVariants, Stamp(), rawSleep(), RunCtl, sleep(), typeInto() (+20 more)
 
 ### Community 16 - "GroqModel"
 Cohesion: 0.07
@@ -141,7 +140,7 @@ Nodes (9): Architecture, Argus — Agent QA & Monitoring Suite for Agentic Comme
 
 ### Community 21 - "App.tsx"
 Cohesion: 0.06
-Nodes (61): react, App(), NAV, TabId, Conversation(), Iris(), RunSelector(), ShuffleDirection (+53 more)
+Nodes (62): react, App(), NAV, TabId, Conversation(), Iris(), RunSelector(), ShuffleDirection (+54 more)
 
 ### Community 22 - "Argus — Data Model"
 Cohesion: 0.17
@@ -172,34 +171,26 @@ Cohesion: 0.29
 Nodes (6): Argus dashboard (web), Build, Deploy, Local, Rendering untrusted text, Why a static SPA and not a backend
 
 ### Community 34 - "supabase_client.py"
-Cohesion: 0.08
-Nodes (45): demo(), Graceful-degradation gate - PROJECT_DESC.md Section 4.4 / DataModel.md's Drift…, unresolved_critical_refs(), Client, classify_drift_cause(), classify_severity(), demo(), _git_history_values() (+37 more)
-
-### Community 35 - "diff.py"
-Cohesion: 0.16
-Nodes (17): AsyncOpenAI, check_faithfulness(), check_numeric(), demo(), DriftCheckResult, _extract_number(), _judge_client(), Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for… (+9 more)
-
-### Community 41 - "Stepper.tsx"
-Cohesion: 0.20
-Nodes (4): Step(), Stepper(), StepperProps, stepVariants
+Cohesion: 0.06
+Nodes (64): demo(), Graceful-degradation gate - PROJECT_DESC.md Section 4.4 / DataModel.md's Drift…, unresolved_critical_refs(), ask_async(), Async single-turn Q&A, same grounding as ask() - used by the drift sampler…, AsyncOpenAI, Client, classify_drift_cause() (+56 more)
 
 ## Knowledge Gaps
-- **186 isolated node(s):** `VerdictInfo`, `Beat`, `Scenario`, `SCENARIOS`, `CategoryKey` (+181 more)
+- **186 isolated node(s):** `NAV`, `TabId`, `VerdictInfo`, `Beat`, `Scenario` (+181 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **13 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
+- **Why does `react` connect `App.tsx` to `Dock.tsx`, `plugins`, `DriftAct.tsx`?**
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._
 - **Why does `ask_with_tools()` connect `reference_agent.py` to `mandate_attacks.py`, `supabase_client.py`?**
   _High betweenness centrality (0.016) - this node is a cross-community bridge._
-- **Why does `react` connect `App.tsx` to `Stepper.tsx`, `plugins`, `DriftAct.tsx`?**
-  _High betweenness centrality (0.016) - this node is a cross-community bridge._
-- **Why does `GroqModel` connect `GroqModel` to `diff.py`?**
+- **Why does `GroqModel` connect `GroqModel` to `supabase_client.py`?**
   _High betweenness centrality (0.012) - this node is a cross-community bridge._
 - **Are the 7 inferred relationships involving `ask_with_tools()` (e.g. with `load_coupons()` and `unresolved_critical_refs()`) actually correct?**
   _`ask_with_tools()` has 7 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `VerdictInfo`, `Beat`, `Scenario` to the rest of the system?**
+- **What connects `NAV`, `TabId`, `VerdictInfo` to the rest of the system?**
   _186 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `What You Must Do When Invoked` be split into smaller, more focused modules?**
   _Cohesion score 0.07407407407407407 - nodes in this community are weakly interconnected._

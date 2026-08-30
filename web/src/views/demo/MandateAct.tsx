@@ -31,7 +31,20 @@ const CONTROL_LINES = [
   "Payment link created. [TEST RUN — no real payment link was created]",
 ];
 
-export function MandateAct({ onExit, onComplete }: { onExit: () => void; onComplete?: () => void }) {
+export interface MandateUpdate {
+  denied: boolean;
+  authorized: boolean;
+}
+
+export function MandateAct({
+  onExit,
+  onComplete,
+  onUpdate,
+}: {
+  onExit: () => void;
+  onComplete?: () => void;
+  onUpdate?: (u: MandateUpdate) => void;
+}) {
   const runId = useRef(0);
   const pausedRef = useRef(false);
   const [paused, setPaused] = useState(false);
@@ -57,6 +70,7 @@ export function MandateAct({ onExit, onComplete }: { onExit: () => void; onCompl
     setM2(["", "", "", ""]);
     setMVerdict2(null);
     setMandateRow(false);
+    onUpdate?.({ denied: false, authorized: false });
 
     for (let i = 0; i < ATTACK_LINES.length; i++) {
       await typeInto((v) => setM1((prev) => prev.map((p, idx) => (idx === i ? v : p))), ATTACK_LINES[i], ctl);
@@ -66,6 +80,7 @@ export function MandateAct({ onExit, onComplete }: { onExit: () => void; onCompl
     await sleep(400, ctl);
     if (ctl.isStale()) return;
     setMVerdict1("denied");
+    onUpdate?.({ denied: true, authorized: false });
     await sleep(BEAT_MS + 200, ctl);
     if (ctl.isStale()) return;
 
@@ -77,6 +92,7 @@ export function MandateAct({ onExit, onComplete }: { onExit: () => void; onCompl
     await sleep(400, ctl);
     if (ctl.isStale()) return;
     setMVerdict2("authorized");
+    onUpdate?.({ denied: true, authorized: true });
     await sleep(300, ctl);
     if (ctl.isStale()) return;
     setMandateRow(true);
