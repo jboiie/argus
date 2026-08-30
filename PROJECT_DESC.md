@@ -81,8 +81,8 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 ## 5. Practical Constraints — Things That Will Break If Ignored
 
 - **Razorpay test-mode Payment Links are capped at 30 per business.** Do not let the automated attack/drift loops call the real "create payment link" endpoint on every iteration — you'll exhaust the quota almost immediately. Mock/stub the actual API call during bulk automated runs; only hit the real endpoint for a handful of genuine demo transactions (smoke tests, the graceful-failure demo, the video recording).
-- **Streamlit Community Cloud apps sleep after just 12 hours of no visitor traffic**, and a plain scheduled HTTP GET does *not* wake them — Streamlit serves a static shell to bare requests; a real browser visit is required. Set up a scheduled GitHub Action using Playwright/Selenium (not `requests.get`) to actually visit and wake the app every 6–8 hours, starting once it's deployed and running continuously through the interview period — no published timeline exists for when that might be, so don't assume it's safe to stop after a week.
-- **Supabase free-tier projects pause after 7 days of inactivity, with no backups on the free tier.** Add a lightweight heartbeat query on the same schedule as the Streamlit keep-alive.
+- ~~**Streamlit Community Cloud apps sleep after just 12 hours of no visitor traffic**, and a plain scheduled HTTP GET does *not* wake them...~~ — *Moot: no deployed dashboard anymore, see the 4.5 correction above.*
+- ~~**Supabase free-tier projects pause after 7 days of inactivity, with no backups on the free tier.** Add a lightweight heartbeat query...~~ — *Correction: the keep-alive Action (`.github/workflows/keepalive.yml`) existed but its secrets were never configured, so it silently failed every scheduled run from 2026-08-28 on. Removed rather than fixed — with no deployed dashboard, there's no live public view for a paused project to break; run `redteam`/`drift` again before the interview if the project has gone idle.*
 - **Strictly defense/detection only.** Every attack in this project targets only the self-built reference agent. Nothing here should be reusable as a standalone exploit/jailbreak generator against a real third-party system — this is a hard constraint tied to Track 02's bar, not a style preference.
 - **Watch the "AI Judgment" axis specifically.** It penalizes forcing AI where deterministic logic would do — e.g., the price/numeric diff should be plain comparison, not an LLM call. Reserve LLM-as-judge (RAGAS, self-consistency) for genuinely fuzzy semantic claims. State in the README which parts are rule-based vs. LLM-judged, and why.
 
@@ -130,7 +130,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 23. [x] Wire tab 2 to drift feed (incidents over time). `drift_incidents_over_time()` + `drift_cause_breakdown()` + the false-positive cost metric (`drift/audit.py`). Live-verified: 128 real rows.
 24. [x] Audit trail detail view per incident. Both tabs let you pick an `attack_id`/`incident_id` and see full detail plus the linked `session_turns` conversation (closes the loop from step 20's audit-trail logging).
 25. [x] Deploy to Streamlit Cloud; verify the public link loads with live data. Deployed and confirmed loading live data. Hit one real deployment-only bug (`sys.path` didn't include the repo root under Streamlit Cloud's mount, `ModuleNotFoundError: No module named 'dashboard'`) — fixed and verified, see BUGS.md.
-26. Set up the Streamlit + Supabase keep-alive GitHub Actions (Section 5) — leave running.
+26. ~~Set up the Streamlit + Supabase keep-alive GitHub Actions (Section 5) — leave running.~~ *Removed 2026-08-31: no deployed dashboard, and the Action's secrets were never actually set anyway — see Section 5 correction.*
 
 **Submission Prep**
 27. [x] Graceful-degradation mechanism built 2026-08-26 (`agent/drift_guard.py` + `agent/tools.py` mandate gate — see BUGS.md). Staging the video clip of it is still open.
@@ -138,7 +138,7 @@ Agentic commerce agents will hallucinate prices, invent policies, and drift over
 29. Finalize `BUGS.md` entries (Section 8).
 30. Script the 5-minute video: cooking/meal-planning analogy, structured as problem → solution → demo, ending with what broke and how it was fixed. Video may be unlisted.
 31. Record, edit, final repo cleanup, submit.
-32. Keep the keep-alive Actions running until you hear back — no published interview timeline exists.
+32. ~~Keep the keep-alive Actions running until you hear back — no published interview timeline exists.~~ *Removed along with step 26.*
 
 **Stretch (only if steps 1–29 are done with real time left)**: upgrade reference agent to cart + coupon + multi-step checkout. **[x] Done 2026-08-26**, ahead of the original gate (steps 26/27/29 still open at the time — real runway to Sep 5 made this a deliberate call, not a slip). `agent/cart.py` (server-side cart/coupon/total, deterministic), `coupons.json` ground truth, `add_to_cart`/`apply_coupon` tools, `create_payment_link` reworked to never trust a model-supplied amount (a real pre-existing gap, fixed as part of this — see BUGS.md). Mandate schema extended (`line_items`, `coupon_code`, `migrate_003`). Live-verified end to end: add → coupon → confirm → correct server-computed total. Found and fixed a genuine Gemini API turn-ordering bug along the way (see BUGS.md). Full smoke test suite (10/10) still passes against the upgraded agent.
 

@@ -41,18 +41,6 @@ npm run build             # -> dist/
 npm run preview
 ```
 
-## Deploy
-
-Any static host. The build has no server runtime, so unlike Streamlit
-Community Cloud it **never sleeps** — which also removes the browser-based
-keep-alive half of the scheduled Action in `.github/workflows/keepalive.yml`.
-The Supabase heartbeat in that workflow is still needed: the free tier pauses
-a project after 7 days of inactivity.
-
-- **Vercel** — import the repo, set root directory to `web`, add the two
-  `VITE_*` variables in project settings.
-- **Netlify** — base `web`, build `npm run build`, publish `web/dist`.
-
 ## Rendering untrusted text
 
 Attack prompts, agent responses, judge reasoning and session turns are
