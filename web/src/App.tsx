@@ -8,7 +8,7 @@ import { Findings } from "./views/Findings";
 import { RedTeam } from "./views/RedTeam";
 import { Drift } from "./views/Drift";
 import { Mandates as MandatesView } from "./views/Mandates";
-import { DemoRun } from "./views/DemoRun";
+import { Demo } from "./views/demo";
 import { LoadingView, Note } from "./components/ui";
 import Dock from "./components/Dock";
 import Shuffle from "./components/Shuffle";
@@ -107,8 +107,8 @@ export default function App() {
       </div>
 
       {mode === "demo" ? (
-        <main className="relative z-10 mx-auto max-w-[1400px] px-6 pt-8 pb-24 sm:px-12 lg:px-16">
-          <DemoRun onExit={() => setMode("real")} />
+        <main className="relative z-10 mx-auto max-w-[1400px] px-6 pt-8 pb-40 sm:px-12 lg:px-16">
+          <Demo onExit={() => setMode("real")} />
         </main>
       ) : (
         <>

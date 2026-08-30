@@ -1,16 +1,16 @@
 # Graph Report - argus  (2026-08-30)
 
 ## Corpus Check
-- 75 files · ~272,555 words
+- 76 files · ~274,525 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 556 nodes · 899 edges · 42 communities (28 shown, 14 thin omitted)
+- 562 nodes · 916 edges · 42 communities (28 shown, 14 thin omitted)
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 39 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `56b56b4d`
+- Built from commit: `73bd7ef4`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -61,11 +61,11 @@
 3. `GroqModel` - 16 edges
 4. `compilerOptions` - 15 edges
 5. `execute_tool_call()` - 13 edges
-6. `main()` - 12 edges
+6. `react` - 13 edges
 7. `ask_async()` - 12 edges
-8. `get_client()` - 12 edges
-9. `What You Must Do When Invoked` - 12 edges
-10. `react` - 12 edges
+8. `main()` - 12 edges
+9. `get_client()` - 12 edges
+10. `What You Must Do When Invoked` - 12 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `_log_turn_safe()` --calls--> `log_session_turn()`  [INFERRED]
@@ -76,8 +76,8 @@
   redteam/mandate_attacks.py → agent/reference_agent.py
 - `_log_mandate_safe()` --calls--> `log_mandate()`  [INFERRED]
   agent/tools.py → telemetry/supabase_client.py
-- `main()` --calls--> `create_run()`  [INFERRED]
-  redteam/run_asi.py → telemetry/supabase_client.py
+- `demo()` --calls--> `check_numeric()`  [INFERRED]
+  telemetry/supabase_client.py → drift/diff.py
 
 ## Import Cycles
 - None detected.
@@ -122,7 +122,7 @@ Nodes (17): 0. Before You Write Any Code, 1. Context & Stakes, 2. The One-Line I
 
 ### Community 13 - "reference_agent.py"
 Cohesion: 0.07
-Nodes (58): add_item(), apply_coupon(), _cart(), clear_cart(), compute_total(), demo(), load_coupons(), load_products() (+50 more)
+Nodes (54): add_item(), apply_coupon(), _cart(), clear_cart(), compute_total(), demo(), load_coupons(), load_products() (+46 more)
 
 ### Community 14 - "razorpay_mcp.py"
 Cohesion: 0.43
@@ -142,7 +142,7 @@ Nodes (9): Architecture, Argus — Agent QA & Monitoring Suite for Agentic Comme
 
 ### Community 21 - "App.tsx"
 Cohesion: 0.06
-Nodes (63): react, App(), NAV, TabId, Conversation(), Iris(), RunSelector(), ShuffleDirection (+55 more)
+Nodes (67): react, App(), NAV, TabId, Conversation(), Iris(), RunSelector(), ShuffleDirection (+59 more)
 
 ### Community 22 - "Argus — Data Model"
 Cohesion: 0.17
@@ -174,7 +174,7 @@ Nodes (6): Argus dashboard (web), Build, Deploy, Local, Rendering untrusted text
 
 ### Community 34 - "supabase_client.py"
 Cohesion: 0.09
-Nodes (40): demo(), Graceful-degradation gate - PROJECT_DESC.md Section 4.4 / DataModel.md's Drift…, unresolved_critical_refs(), Client, classify_drift_cause(), classify_severity(), demo(), _git_history_values() (+32 more)
+Nodes (44): demo(), Graceful-degradation gate - PROJECT_DESC.md Section 4.4 / DataModel.md's Drift…, unresolved_critical_refs(), Client, classify_drift_cause(), classify_severity(), demo(), _git_history_values() (+36 more)
 
 ### Community 36 - "devDependencies"
 Cohesion: 0.11
@@ -185,7 +185,7 @@ Cohesion: 0.18
 Nodes (5): Step(), Stepper(), StepperProps, stepVariants, Overview()
 
 ## Knowledge Gaps
-- **176 isolated node(s):** `Status`, `Dashboard`, `Architecture`, `Full-sweep results`, `Design Decisions` (+171 more)
+- **176 isolated node(s):** `NAV`, `TabId`, `ShuffleDirection`, `ShuffleProps`, `Outcome` (+171 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -196,13 +196,13 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.018) - this node is a cross-community bridge._
 - **Why does `GroqModel` connect `GroqModel` to `diff.py`?**
   _High betweenness centrality (0.014) - this node is a cross-community bridge._
-- **Why does `ask_async()` connect `reference_agent.py` to `supabase_client.py`, `diff.py`?**
+- **Why does `react` connect `App.tsx` to `Stepper.tsx`, `Dock.tsx`, `plugins`?**
   _High betweenness centrality (0.012) - this node is a cross-community bridge._
 - **Are the 7 inferred relationships involving `ask_with_tools()` (e.g. with `load_coupons()` and `unresolved_critical_refs()`) actually correct?**
   _`ask_with_tools()` has 7 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 2 inferred relationships involving `execute_tool_call()` (e.g. with `ask_with_tools()` and `demo_drift_guard_block()`) actually correct?**
   _`execute_tool_call()` has 2 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `Status`, `Dashboard`, `Architecture` to the rest of the system?**
+- **What connects `NAV`, `TabId`, `ShuffleDirection` to the rest of the system?**
   _176 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `What You Must Do When Invoked` be split into smaller, more focused modules?**
   _Cohesion score 0.07407407407407407 - nodes in this community are weakly interconnected._
