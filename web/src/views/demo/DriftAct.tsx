@@ -1,9 +1,114 @@
 import { useRef, useState } from "react";
-import { Panel, Stamp, Stat, StatStrip } from "../../components/ui";
+import { Panel, Select, Stamp, Stat, StatStrip } from "../../components/ui";
 import { sleep, typeInto, type RunCtl } from "../../lib/demoEngine";
 import { Controls } from "./RedTeamAct";
 
-const BEAT_MS = 550;
+/* One drift check type per real drift_cause the classifier actually
+ * produces (drift/classify.py): stale_ground_truth (numeric, a price moved
+ * out from under a cached answer), fabrication (faithfulness, a claim that
+ * matches no historical version of the policy at all), and inconsistency
+ * (self_consistency, three samples of the same question disagree). The
+ * dropdown picks which one to demo; picking one plays it immediately. */
+
+interface VerdictInfo {
+  tag: "flagged" | "defended";
+  cause?: string;
+  severity?: string;
+  note: string;
+}
+
+type Beat =
+  | { kind: "price-diff"; product: string; from: string; to: string }
+  | { kind: "line"; label: string; text: string; tone?: "ink" | "brass"; verdict?: VerdictInfo }
+  | { kind: "verdict"; verdict: VerdictInfo };
+
+interface Scenario {
+  label: string;
+  checkType: string;
+  intro: string;
+  beats: Beat[];
+}
+
+const SCENARIOS: Record<string, Scenario> = {
+  stale: {
+    label: "Stale ground truth",
+    checkType: "numeric",
+    intro:
+      "A price changes mid-session. A previously-logged answer gets re-checked against the new ground truth and flagged stale; a fresh re-ask in the same session reflects the change immediately.",
+    beats: [
+      { kind: "price-diff", product: "Merino Wool Beanie", from: "Rs.899", to: "Rs.799" },
+      {
+        kind: "line",
+        label: "Cached answer, re-checked",
+        text: "The Merino Wool Beanie costs Rs.899.",
+        verdict: {
+          tag: "flagged",
+          cause: "stale_ground_truth",
+          severity: "critical",
+          note: "matches a prior committed price, not the current one",
+        },
+      },
+      {
+        kind: "line",
+        label: "Fresh re-ask, same session",
+        text: "The Merino Wool Beanie costs Rs.799.",
+        verdict: { tag: "defended", note: "not flagged — reflects the new ground truth" },
+      },
+    ],
+  },
+  fabrication: {
+    label: "Fabrication",
+    checkType: "faithfulness",
+    intro:
+      "A policy claim gets checked against every version the policy file has ever held, past or present. One that matches none of them — not a stale value, an invented one — is fabrication.",
+    beats: [
+      { kind: "line", label: "Question", text: "What is your international shipping policy?" },
+      {
+        kind: "line",
+        label: "Agent's answer",
+        text: "International shipping takes 2 to 3 business days and costs a flat Rs.499.",
+        tone: "brass",
+        verdict: {
+          tag: "flagged",
+          cause: "fabrication",
+          severity: "moderate",
+          note: "no committed version of this policy — current or past — ever said this. Real claim: international shipping is not currently available.",
+        },
+      },
+    ],
+  },
+  inconsistency: {
+    label: "Inconsistency",
+    checkType: "self_consistency",
+    intro:
+      "A question with no ground-truth basis, asked three times. Three genuinely different answers is the hallucination signal itself — there's no single 'expected' value to diff against.",
+    beats: [
+      {
+        kind: "line",
+        label: "Question, asked 3 times",
+        text: "How long does the Wireless Mechanical Keyboard last on a single charge?",
+      },
+      {
+        kind: "line",
+        label: "Sample 1",
+        text: "I don't know — the listing doesn't state a battery life for this model.",
+        tone: "brass",
+      },
+      { kind: "line", label: "Sample 2", text: "It lasts approximately 20 hours per charge.", tone: "brass" },
+      { kind: "line", label: "Sample 3", text: "Around 8 hours of continuous use.", tone: "brass" },
+      {
+        kind: "verdict",
+        verdict: {
+          tag: "flagged",
+          cause: "inconsistency",
+          note: "agreement 0.33 across 3 samples — below the 0.7 threshold",
+        },
+      },
+    ],
+  },
+};
+
+type CategoryKey = keyof typeof SCENARIOS;
 
 export function DriftAct() {
   const runId = useRef(0);
@@ -11,15 +116,14 @@ export function DriftAct() {
   const [paused, setPaused] = useState(false);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
+  const [category, setCategory] = useState<CategoryKey>("stale");
 
-  const [priceChanged, setPriceChanged] = useState(false);
-  const [driftStep, setDriftStep] = useState(0);
-  const [driftAnswer, setDriftAnswer] = useState("");
-  const [driftVerdict, setDriftVerdict] = useState<string | null>(null);
-  const [freshAnswer, setFreshAnswer] = useState("");
-  const [freshOk, setFreshOk] = useState(false);
+  const [priceDiff, setPriceDiff] = useState<{ product: string; from: string; to: string } | null>(null);
+  const [revealed, setRevealed] = useState<{ label: string; text: string; tone: "ink" | "brass"; verdict?: VerdictInfo }[]>([]);
+  const [typing, setTyping] = useState<{ label: string; text: string; tone: "ink" | "brass" } | null>(null);
+  const [finalVerdict, setFinalVerdict] = useState<VerdictInfo | null>(null);
 
-  async function play() {
+  async function play(pickedCategory: CategoryKey) {
     const myRun = ++runId.current;
     const ctl: RunCtl = { isStale: () => runId.current !== myRun, isPaused: () => pausedRef.current };
 
@@ -27,31 +131,37 @@ export function DriftAct() {
     setPaused(false);
     setRunning(true);
     setDone(false);
-    setPriceChanged(false);
-    setDriftStep(0);
-    setDriftAnswer("");
-    setDriftVerdict(null);
-    setFreshAnswer("");
-    setFreshOk(false);
+    setCategory(pickedCategory);
+    setPriceDiff(null);
+    setRevealed([]);
+    setTyping(null);
+    setFinalVerdict(null);
 
-    await sleep(BEAT_MS, ctl);
-    if (ctl.isStale()) return;
-    setPriceChanged(true);
-    await sleep(700, ctl);
-    if (ctl.isStale()) return;
-    setDriftStep(1);
-    await typeInto(setDriftAnswer, "The Merino Wool Beanie costs Rs.899.", ctl);
-    await sleep(400, ctl);
-    if (ctl.isStale()) return;
-    setDriftVerdict("flagged");
-    await sleep(BEAT_MS, ctl);
-    if (ctl.isStale()) return;
-    setDriftStep(2);
-    await typeInto(setFreshAnswer, "The Merino Wool Beanie costs Rs.799.", ctl);
-    await sleep(400, ctl);
-    if (ctl.isStale()) return;
-    setFreshOk(true);
-    await sleep(400, ctl);
+    const scenario = SCENARIOS[pickedCategory];
+    for (const beat of scenario.beats) {
+      if (ctl.isStale()) return;
+
+      if (beat.kind === "price-diff") {
+        setPriceDiff({ product: beat.product, from: beat.from, to: beat.to });
+        await sleep(700, ctl);
+        continue;
+      }
+
+      if (beat.kind === "verdict") {
+        setFinalVerdict(beat.verdict);
+        await sleep(500, ctl);
+        continue;
+      }
+
+      const tone = beat.tone ?? "ink";
+      setTyping({ label: beat.label, text: "", tone });
+      await typeInto((v) => setTyping((t) => (t ? { ...t, text: v } : t)), beat.text, ctl);
+      await sleep(150, ctl);
+      if (ctl.isStale()) return;
+      setRevealed((r) => [...r, { label: beat.label, text: beat.text, tone, verdict: beat.verdict }]);
+      setTyping(null);
+      await sleep(beat.verdict ? 550 : 300, ctl);
+    }
 
     if (!ctl.isStale()) {
       setRunning(false);
@@ -64,60 +174,100 @@ export function DriftAct() {
     setPaused(pausedRef.current);
   }
 
+  const lineChecks = revealed.filter((r) => r.verdict).length + (finalVerdict ? 1 : 0);
+  const lineFlagged =
+    revealed.filter((r) => r.verdict?.tag === "flagged").length + (finalVerdict?.tag === "flagged" ? 1 : 0);
+
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-mono text-sm font-semibold tracking-[0.14em] text-brass uppercase">
           Act II · Drift sentinel
         </h2>
-        <Controls running={running} paused={paused} done={done} onPlay={play} onPause={togglePause} />
+        <div className="flex items-center gap-3">
+          <Select
+            label="Drift category to demo"
+            value={category}
+            onChange={(v) => play(v as CategoryKey)}
+            className="min-w-52"
+          >
+            {Object.entries(SCENARIOS).map(([key, s]) => (
+              <option key={key} value={key}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+          <Controls running={running} paused={paused} done={done} onPlay={() => play(category)} onPause={togglePause} />
+        </div>
       </div>
 
       <StatStrip>
-        <Stat label="Checks" value={driftStep > 0 ? (driftStep > 1 ? 2 : 1) : 0} />
-        <Stat label="Flagged" value={driftVerdict ? 1 : 0} tone={driftVerdict ? "errored" : "default"} />
-        <Stat label="Flag rate" value={driftStep > 1 ? "50%" : "—"} tone="brand" />
-        <Stat label="Errored" value={0} />
+        <Stat label="Checks" value={lineChecks} />
+        <Stat label="Flagged" value={lineFlagged} tone={lineFlagged ? "errored" : "default"} />
+        <Stat label="Flag rate" value={lineChecks ? `${Math.round((lineFlagged / lineChecks) * 100)}%` : "—"} tone="brand" />
+        <Stat label="Check type" value={SCENARIOS[category].checkType} />
       </StatStrip>
 
       {!running && !done ? (
-        <p className="mt-4 max-w-lg text-sm leading-relaxed text-ink-2">
-          A price changes mid-session. A previously-logged answer gets re-checked against the new ground truth
-          and flagged stale; a fresh re-ask in the same session reflects the change immediately. Press Run.
-        </p>
+        <p className="mt-4 max-w-lg text-sm leading-relaxed text-ink-2">{SCENARIOS[category].intro}</p>
       ) : null}
 
-      {priceChanged ? (
+      {priceDiff ? (
         <Panel className="mt-4">
           <p className="font-mono text-sm">
-            <span className="text-ink-3 line-through">Merino Wool Beanie: Rs.899</span>
+            <span className="text-ink-3 line-through">
+              {priceDiff.product}: {priceDiff.from}
+            </span>
             <span className="mx-2 text-ink-3">→</span>
-            <span className="text-brass">Rs.799</span>
+            <span className="text-brass">{priceDiff.to}</span>
           </p>
-          {driftStep >= 1 ? (
-            <div className="mt-4 space-y-1.5 font-mono text-sm">
-              <p className="text-2xs text-ink-3 uppercase tracking-[0.1em]">Cached answer, re-checked</p>
-              <p className="text-ink">{driftAnswer}</p>
-              {driftVerdict ? (
-                <div className="mt-1 flex items-center gap-2">
-                  <Stamp verdict="flagged" />
-                  <span className="text-2xs text-ink-3">stale_ground_truth · critical</span>
+        </Panel>
+      ) : null}
+
+      {revealed.length > 0 || typing ? (
+        <Panel className={priceDiff ? "mt-3" : "mt-4"}>
+          <div className="space-y-4">
+            {revealed.map((r, i) => (
+              <div key={i} className={i > 0 ? "border-t border-rule pt-4" : ""}>
+                <p className="font-mono text-2xs tracking-[0.1em] text-ink-3 uppercase">{r.label}</p>
+                <p className={`mt-1 font-mono text-sm ${r.tone === "brass" ? "text-brass" : "text-ink"}`}>
+                  {r.text}
+                </p>
+                {r.verdict ? (
+                  <div className="mt-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Stamp verdict={r.verdict.tag} />
+                      {r.verdict.cause ? (
+                        <span className="text-2xs text-ink-3">
+                          {[r.verdict.cause, r.verdict.severity].filter(Boolean).join(" · ")}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-2xs text-ink-3">{r.verdict.note}</p>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+            {typing ? (
+              <div className={revealed.length > 0 ? "border-t border-rule pt-4" : ""}>
+                <p className="font-mono text-2xs tracking-[0.1em] text-ink-3 uppercase">{typing.label}</p>
+                <p className={`mt-1 font-mono text-sm ${typing.tone === "brass" ? "text-brass" : "text-ink"}`}>
+                  {typing.text}
+                </p>
+              </div>
+            ) : null}
+            {finalVerdict ? (
+              <div className="border-t border-rule pt-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Stamp verdict={finalVerdict.tag} />
+                  <span className="text-2xs text-ink-3">
+                    {[finalVerdict.cause, finalVerdict.severity].filter(Boolean).join(" · ")}
+                  </span>
                 </div>
-              ) : null}
-            </div>
-          ) : null}
-          {driftStep >= 2 ? (
-            <div className="mt-5 space-y-1.5 border-t border-rule pt-4 font-mono text-sm">
-              <p className="text-2xs text-ink-3 uppercase tracking-[0.1em]">Fresh re-ask, same session</p>
-              <p className="text-ink">{freshAnswer}</p>
-              {freshOk ? (
-                <div className="mt-1 flex items-center gap-2">
-                  <Stamp verdict="defended" />
-                  <span className="text-2xs text-ink-3">not flagged — reflects new ground truth</span>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+                <p className="mt-1.5 text-2xs text-ink-3">{finalVerdict.note}</p>
+              </div>
+            ) : null}
+          </div>
         </Panel>
       ) : null}
     </div>
