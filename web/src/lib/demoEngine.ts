@@ -11,8 +11,22 @@ export interface RunCtl {
 
 const POLL_MS = 80;
 
+/* Session-wide playback speed, read live by every rawSleep call. A module-
+ * level multiplier (not per-act state) so one control in the Demo toolbar
+ * speeds up whichever act happens to be running, without threading a prop
+ * through three components and every sleep()/typeInto() call site. */
+let speedMultiplier = 1;
+
+export function setSpeed(multiplier: number) {
+  speedMultiplier = multiplier;
+}
+
+export function getSpeed() {
+  return speedMultiplier;
+}
+
 function rawSleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  return new Promise<void>((resolve) => setTimeout(resolve, ms / speedMultiplier));
 }
 
 export async function sleep(ms: number, ctl: RunCtl): Promise<void> {
