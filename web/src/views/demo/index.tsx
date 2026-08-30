@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Activity, Compass, ScrollText, Wallet } from "lucide-react";
 import Dock from "../../components/Dock";
-import { Overview } from "../Overview";
+import { Overview, type CompletedActs } from "../Overview";
 import { RedTeamAct } from "./RedTeamAct";
 import { DriftAct } from "./DriftAct";
 import { MandateAct } from "./MandateAct";
@@ -23,6 +23,11 @@ type DemoTab = (typeof DEMO_NAV)[number]["id"];
 
 export function Demo({ onExit }: { onExit: () => void }) {
   const [tab, setTab] = useState<DemoTab>("overview");
+  const [completed, setCompleted] = useState<CompletedActs>({
+    redteam: false,
+    drift: false,
+    mandates: false,
+  });
 
   return (
     <div className="pb-32">
@@ -33,10 +38,16 @@ export function Demo({ onExit }: { onExit: () => void }) {
         </span>
       </div>
 
-      {tab === "overview" ? <Overview /> : null}
-      {tab === "redteam" ? <RedTeamAct /> : null}
-      {tab === "drift" ? <DriftAct /> : null}
-      {tab === "mandates" ? <MandateAct onExit={onExit} /> : null}
+      {tab === "overview" ? <Overview completedActs={completed} /> : null}
+      {tab === "redteam" ? (
+        <RedTeamAct onComplete={() => setCompleted((c) => ({ ...c, redteam: true }))} />
+      ) : null}
+      {tab === "drift" ? (
+        <DriftAct onComplete={() => setCompleted((c) => ({ ...c, drift: true }))} />
+      ) : null}
+      {tab === "mandates" ? (
+        <MandateAct onExit={onExit} onComplete={() => setCompleted((c) => ({ ...c, mandates: true }))} />
+      ) : null}
 
       <Dock
         items={DEMO_NAV.map((n) => {

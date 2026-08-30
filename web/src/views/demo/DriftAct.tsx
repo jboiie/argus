@@ -110,7 +110,7 @@ const SCENARIOS: Record<string, Scenario> = {
 
 type CategoryKey = keyof typeof SCENARIOS;
 
-export function DriftAct() {
+export function DriftAct({ onComplete }: { onComplete?: () => void }) {
   const runId = useRef(0);
   const pausedRef = useRef(false);
   const [paused, setPaused] = useState(false);
@@ -166,6 +166,7 @@ export function DriftAct() {
     if (!ctl.isStale()) {
       setRunning(false);
       setDone(true);
+      onComplete?.();
     }
   }
 

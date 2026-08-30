@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Activity, ArrowLeft, Compass, Eye, ScrollText, ShieldAlert, Sparkles, Wallet } from "lucide-react";
+import { Activity, ArrowLeft, Eye, ScrollText, ShieldAlert, Sparkles, Wallet } from "lucide-react";
 import { fetchAttackEvents, fetchDriftIncidents, fetchMandates, fetchRuns } from "./lib/data";
 import { isConfigured } from "./lib/supabase";
 import type { AttackEvent, DriftIncident, Mandate, Run } from "./lib/types";
-import { Overview } from "./views/Overview";
 import { Findings } from "./views/Findings";
 import { RedTeam } from "./views/RedTeam";
 import { Drift } from "./views/Drift";
@@ -15,7 +14,6 @@ import Shuffle from "./components/Shuffle";
 import { Spotlight } from "./components/Spotlight";
 
 const NAV = [
-  { id: "overview", label: "Overview", icon: Compass, blurb: "How Argus works, step by step" },
   { id: "findings", label: "Findings", icon: ShieldAlert, blurb: "What the harness caught" },
   { id: "redteam", label: "Red Team", icon: ScrollText, blurb: "Pre-deployment attack results" },
   { id: "drift", label: "Drift", icon: Activity, blurb: "Post-deployment ground-truth checks" },
@@ -25,7 +23,7 @@ type TabId = (typeof NAV)[number]["id"];
 
 export default function App() {
   const [mode, setMode] = useState<"real" | "demo">("real");
-  const [tab, setTab] = useState<TabId>("overview");
+  const [tab, setTab] = useState<TabId>("findings");
   const [events, setEvents] = useState<AttackEvent[]>([]);
   const [incidents, setIncidents] = useState<DriftIncident[]>([]);
   const [mandates, setMandates] = useState<Mandate[]>([]);
@@ -89,7 +87,7 @@ export default function App() {
           </a>
           <button
             onClick={() => setMode(mode === "demo" ? "real" : "demo")}
-            className="inline-flex items-center gap-1.5 border border-brass px-3 py-1.5 font-mono text-2xs font-semibold tracking-[0.14em] text-brass uppercase transition-colors hover:bg-brass hover:text-void"
+            className="inline-flex items-center gap-1.5 rounded-md border border-brass bg-brass/10 px-3.5 py-1.5 font-mono text-2xs font-bold tracking-[0.14em] text-brass uppercase shadow-[0_0_14px_-4px_rgba(201,162,39,0.7)] transition-colors hover:bg-brass hover:text-void"
           >
             {mode === "demo" ? (
               <>
@@ -125,7 +123,6 @@ export default function App() {
               <LoadingView />
             ) : (
               <>
-                {tab === "overview" ? <Overview /> : null}
                 {tab === "findings" ? <Findings incidents={incidents} /> : null}
                 {tab === "redteam" ? <RedTeam events={events} runs={runs} /> : null}
                 {tab === "drift" ? <Drift incidents={incidents} runs={runs} /> : null}

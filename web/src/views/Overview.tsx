@@ -47,7 +47,40 @@ function Slide({
   );
 }
 
-export function Overview() {
+export interface CompletedActs {
+  redteam: boolean;
+  drift: boolean;
+  mandates: boolean;
+}
+
+function CompletionStrip({ completed }: { completed: CompletedActs }) {
+  const acts: { key: keyof CompletedActs; label: string }[] = [
+    { key: "redteam", label: "Red Team" },
+    { key: "drift", label: "Drift" },
+    { key: "mandates", label: "Mandates" },
+  ];
+  const allDone = acts.every((a) => completed[a.key]);
+
+  return (
+    <div
+      className={`mx-auto mb-8 flex max-w-xl flex-wrap items-center justify-center gap-x-6 gap-y-2 border px-5 py-3 font-mono text-2xs tracking-[0.1em] uppercase ${
+        allDone ? "border-verdict/60 bg-verdict/10 text-verdict-soft" : "border-rule bg-chrome text-ink-3"
+      }`}
+    >
+      {allDone ? (
+        <span className="font-bold">✓ All three simulations complete</span>
+      ) : (
+        acts.map((a) => (
+          <span key={a.key} className={completed[a.key] ? "text-verdict-soft" : "text-ink-3"}>
+            {completed[a.key] ? "✓" : "○"} {a.label}
+          </span>
+        ))
+      )}
+    </div>
+  );
+}
+
+export function Overview({ completedActs }: { completedActs?: CompletedActs }) {
   return (
     <div className="mx-auto max-w-4xl py-6">
       <div className="mb-10 text-center">
@@ -56,10 +89,12 @@ export function Overview() {
         </span>
         <h2 className="mt-3 font-serif text-4xl text-ink">Six steps, one audit trail.</h2>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-2">
-          Every step below writes real rows to the same Supabase tables the other three tabs read —
-          nothing here is staged for the walkthrough.
+          The same six steps the real Argus build runs — walk through them here, then go run each one
+          live under Red Team, Drift, and Mandates.
         </p>
       </div>
+
+      {completedActs ? <CompletionStrip completed={completedActs} /> : null}
 
       <Stepper backButtonText="Back" nextButtonText="Next">
         <Step>

@@ -31,7 +31,7 @@ const CONTROL_LINES = [
   "Payment link created. [TEST RUN — no real payment link was created]",
 ];
 
-export function MandateAct({ onExit }: { onExit: () => void }) {
+export function MandateAct({ onExit, onComplete }: { onExit: () => void; onComplete?: () => void }) {
   const runId = useRef(0);
   const pausedRef = useRef(false);
   const [paused, setPaused] = useState(false);
@@ -85,6 +85,7 @@ export function MandateAct({ onExit }: { onExit: () => void }) {
     if (!ctl.isStale()) {
       setRunning(false);
       setDone(true);
+      onComplete?.();
     }
   }
 

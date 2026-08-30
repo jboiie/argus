@@ -40,7 +40,7 @@ const ATTACKS = [
   },
 ];
 
-export function RedTeamAct() {
+export function RedTeamAct({ onComplete }: { onComplete?: () => void }) {
   const runId = useRef(0);
   const pausedRef = useRef(false);
   const [paused, setPaused] = useState(false);
@@ -82,6 +82,7 @@ export function RedTeamAct() {
     if (!ctl.isStale()) {
       setRunning(false);
       setDone(true);
+      onComplete?.();
     }
   }
 
@@ -168,7 +169,7 @@ export function Controls({
       {running ? (
         <button
           onClick={onPause}
-          className="inline-flex items-center gap-1.5 border border-rule px-3 py-1.5 font-mono text-2xs font-semibold tracking-[0.14em] text-ink-2 uppercase transition-colors hover:border-brass hover:text-brass"
+          className="inline-flex items-center gap-1.5 rounded-md border border-ink-3 bg-chrome-2 px-3.5 py-1.5 font-mono text-2xs font-bold tracking-[0.14em] text-ink-2 uppercase shadow-[0_0_10px_-4px_rgba(231,233,236,0.35)] transition-colors hover:border-brass hover:text-brass"
         >
           {paused ? (
             <>
@@ -183,7 +184,7 @@ export function Controls({
       ) : null}
       <button
         onClick={onPlay}
-        className="inline-flex items-center gap-1.5 border border-brass px-3 py-1.5 font-mono text-2xs font-semibold tracking-[0.14em] text-brass uppercase transition-colors hover:bg-brass hover:text-void"
+        className="inline-flex items-center gap-1.5 rounded-md border border-brass bg-brass/10 px-3.5 py-1.5 font-mono text-2xs font-bold tracking-[0.14em] text-brass uppercase shadow-[0_0_14px_-4px_rgba(201,162,39,0.7)] transition-colors hover:bg-brass hover:text-void"
       >
         {done ? <RotateCcw className="size-3.5" strokeWidth={2} /> : <Play className="size-3.5" strokeWidth={2} />}
         {running ? "Restart" : done ? "Replay" : "Run"}
