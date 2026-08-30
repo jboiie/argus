@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Panel, Select, Stamp, Stat, StatStrip } from "../../components/ui";
+import { useEffect, useRef, useState } from "react";
+import { CompletionCard, Panel, Select, Stamp, Stat, StatStrip } from "../../components/ui";
 import { sleep, typeInto, type RunCtl } from "../../lib/demoEngine";
 import { Controls } from "./RedTeamAct";
 
@@ -159,11 +159,17 @@ const SCENARIOS: Record<string, Scenario> = {
 type CategoryKey = keyof typeof SCENARIOS;
 
 export function DriftAct({
+  onExit,
   onComplete,
   onUpdate,
+  autoPlay,
+  autoNonce,
 }: {
+  onExit?: () => void;
   onComplete?: () => void;
   onUpdate?: (u: DriftUpdate) => void;
+  autoPlay?: string;
+  autoNonce?: number;
 }) {
   const runId = useRef(0);
   const pausedRef = useRef(false);
@@ -172,11 +178,18 @@ export function DriftAct({
   const [done, setDone] = useState(false);
   const [category, setCategory] = useState<CategoryKey>("stale");
 
+  useEffect(() => {
+    if (autoPlay) play(autoPlay as CategoryKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPlay, autoNonce]);
+
   const [priceDiff, setPriceDiff] = useState<{ product: string; from: string; to: string } | null>(null);
   const [revealed, setRevealed] = useState<{ label: string; text: string; tone: "ink" | "brass"; verdict?: VerdictInfo }[]>([]);
   const [typing, setTyping] = useState<{ label: string; text: string; tone: "ink" | "brass" } | null>(null);
   const [finalVerdict, setFinalVerdict] = useState<VerdictInfo | null>(null);
   const [log, setLog] = useState<{ category: string; label: string; verdict: VerdictInfo }[]>([]);
+  const totalChecksRef = useRef(0);
+  const totalFlaggedRef = useRef(0);
 
   async function play(pickedCategory: CategoryKey) {
     const myRun = ++runId.current;
@@ -193,9 +206,17 @@ export function DriftAct({
     setFinalVerdict(null);
 
     const scenario = SCENARIOS[pickedCategory];
-    let checks = 0;
-    let flagged = 0;
-    onUpdate?.({ category: scenario.label, checkType: scenario.checkType, checks: 0, flagged: 0, lastLabel: "", lastVerdict: null });
+    // checks/flagged sent via onUpdate are session-cumulative (mirrors the
+    // persistent `log` below), not just this run's count — so the live
+    // Findings tab shows a running total, same as Red Team's.
+    onUpdate?.({
+      category: scenario.label,
+      checkType: scenario.checkType,
+      checks: totalChecksRef.current,
+      flagged: totalFlaggedRef.current,
+      lastLabel: "",
+      lastVerdict: null,
+    });
 
     for (const beat of scenario.beats) {
       if (ctl.isStale()) return;
@@ -208,14 +229,14 @@ export function DriftAct({
 
       if (beat.kind === "verdict") {
         setFinalVerdict(beat.verdict);
-        checks += 1;
-        if (beat.verdict.tag === "flagged") flagged += 1;
+        totalChecksRef.current += 1;
+        if (beat.verdict.tag === "flagged") totalFlaggedRef.current += 1;
         setLog((l) => [...l, { category: scenario.label, label: "Result", verdict: beat.verdict }]);
         onUpdate?.({
           category: scenario.label,
           checkType: scenario.checkType,
-          checks,
-          flagged,
+          checks: totalChecksRef.current,
+          flagged: totalFlaggedRef.current,
           lastLabel: "Result",
           lastVerdict: beat.verdict,
         });
@@ -231,14 +252,14 @@ export function DriftAct({
       setRevealed((r) => [...r, { label: beat.label, text: beat.text, tone, verdict: beat.verdict }]);
       setTyping(null);
       if (beat.verdict) {
-        checks += 1;
-        if (beat.verdict.tag === "flagged") flagged += 1;
+        totalChecksRef.current += 1;
+        if (beat.verdict.tag === "flagged") totalFlaggedRef.current += 1;
         setLog((l) => [...l, { category: scenario.label, label: beat.label, verdict: beat.verdict! }]);
         onUpdate?.({
           category: scenario.label,
           checkType: scenario.checkType,
-          checks,
-          flagged,
+          checks: totalChecksRef.current,
+          flagged: totalFlaggedRef.current,
           lastLabel: beat.label,
           lastVerdict: beat.verdict,
         });
@@ -379,6 +400,16 @@ export function DriftAct({
             </tbody>
           </table>
         </>
+      ) : null}
+
+      {done && onExit ? (
+        <CompletionCard
+          onExit={onExit}
+          stats={[
+            { value: "27/27", label: "clean drift checks, latest run", tone: "verdict" },
+            { value: "numeric · faithfulness · self-consistency", label: "check types covered" },
+          ]}
+        />
       ) : null}
     </div>
   );

@@ -84,6 +84,7 @@ export function Stamp({ verdict }: { verdict: string }) {
       errored: "text-caution",
       authorized: "text-verdict",
       denied: "text-caution",
+      blocked: "text-caution",
       critical: "text-signal",
       moderate: "text-caution",
     }[verdict.toLowerCase()] ?? "text-stock-ink-2";
@@ -221,6 +222,47 @@ export function ScrollX({ children, label }: { children: ReactNode; label: strin
     <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={label}>
       {children}
     </div>
+  );
+}
+
+/** End-of-run payoff shared by every scripted act: the run was scripted for
+ *  pacing, but the numbers underneath it are the real logged results. */
+export function CompletionCard({
+  stats,
+  onExit,
+}: {
+  stats: { value: string; label: string; tone?: "signal" | "verdict" | "brass" }[];
+  onExit: () => void;
+}) {
+  return (
+    <Reveal>
+      <div className="mt-8 border border-brass/50 bg-chrome p-6">
+        <p className="font-mono text-2xs tracking-[0.14em] text-brass uppercase">Simulation complete</p>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-2">
+          This was scripted for pacing — but it re-enacts real, logged results. The actual full run behind it:
+        </p>
+        <div className="mt-4 flex flex-wrap gap-10">
+          {stats.map((s) => (
+            <div key={s.label}>
+              <div
+                className={`tnum text-3xl font-bold ${
+                  s.tone === "signal" ? "text-signal-soft" : s.tone === "verdict" ? "text-verdict-soft" : "text-brass"
+                }`}
+              >
+                {s.value}
+              </div>
+              <div className="mt-1 font-mono text-2xs text-ink-3 uppercase">{s.label}</div>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={onExit}
+          className="mt-6 inline-flex items-center gap-1.5 border border-brass px-3 py-1.5 font-mono text-2xs font-semibold tracking-[0.14em] text-brass uppercase transition-colors hover:bg-brass hover:text-void"
+        >
+          See the real dashboard →
+        </button>
+      </div>
+    </Reveal>
   );
 }
 

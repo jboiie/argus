@@ -20,13 +20,13 @@ export function DemoFindings({
 }: {
   redteam: RedTeamRow[];
   drift: DriftUpdate | null;
-  mandate: MandateUpdate;
+  mandate: MandateUpdate | null;
 }) {
   const defended = redteam.filter((r) => r.outcome === "defended").length;
   const bypassed = redteam.filter((r) => r.outcome === "bypassed").length;
   const scored = defended + bypassed;
 
-  const nothingYet = redteam.length === 0 && !drift && !mandate.denied && !mandate.authorized;
+  const nothingYet = redteam.length === 0 && !drift && !mandate;
 
   return (
     <div className="mx-auto max-w-4xl py-6">
@@ -113,18 +113,13 @@ export function DemoFindings({
 
       <section>
         <h3 className="font-mono text-xs font-semibold tracking-[0.14em] text-brass uppercase">Mandate gate</h3>
-        {!mandate.denied && !mandate.authorized ? (
+        {!mandate ? (
           <Empty hint="No mandate scenario run yet." />
         ) : (
-          <div className="mt-3 flex flex-wrap gap-6">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-2xs text-ink-3 uppercase">Fabricated confirmation</span>
-              {mandate.denied ? <Stamp verdict="denied" /> : <span className="text-ink-3">—</span>}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-2xs text-ink-3 uppercase">Genuine confirmation</span>
-              {mandate.authorized ? <Stamp verdict="authorized" /> : <span className="text-ink-3">—</span>}
-            </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-ink-2">{mandate.label}</span>
+            <Stamp verdict={mandate.kind} />
+            {mandate.amount ? <span className="font-mono text-2xs text-ink-3">{mandate.amount}</span> : null}
           </div>
         )}
       </section>
