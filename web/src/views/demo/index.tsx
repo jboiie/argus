@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Activity, Compass, FastForward, ScrollText, ShieldAlert, Wallet, Zap } from "lucide-react";
 import Dock from "../../components/Dock";
 import { Overview, type CompletedActs } from "../Overview";
@@ -108,46 +109,56 @@ export function Demo({ onExit }: { onExit: () => void }) {
         </div>
       </div>
 
-      {tab === "overview" ? <Overview completedActs={completed} /> : null}
-      {tab === "findings" ? (
-        <DemoFindings redteam={redteamFindings} drift={driftFindings} mandate={mandateFindings} />
-      ) : null}
-      {tab === "redteam" ? (
-        <RedTeamAct
-          onExit={onExit}
-          onComplete={() => {
-            setCompleted((c) => ({ ...c, redteam: true }));
-            if (autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "redteam") advanceAuto();
-          }}
-          onUpdate={setRedteamFindings}
-          autoPlay={autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "redteam" ? autoKey : undefined}
-          autoNonce={autoNonce.current}
-        />
-      ) : null}
-      {tab === "drift" ? (
-        <DriftAct
-          onExit={onExit}
-          onComplete={() => {
-            setCompleted((c) => ({ ...c, drift: true }));
-            if (autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "drift") advanceAuto();
-          }}
-          onUpdate={setDriftFindings}
-          autoPlay={autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "drift" ? autoKey : undefined}
-          autoNonce={autoNonce.current}
-        />
-      ) : null}
-      {tab === "mandates" ? (
-        <MandateAct
-          onExit={onExit}
-          onComplete={() => {
-            setCompleted((c) => ({ ...c, mandates: true }));
-            if (autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "mandates") advanceAuto();
-          }}
-          onUpdate={setMandateFindings}
-          autoPlay={autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "mandates" ? autoKey : undefined}
-          autoNonce={autoNonce.current}
-        />
-      ) : null}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.28, ease: [0.2, 0.7, 0.3, 1] }}
+        >
+          {tab === "overview" ? <Overview completedActs={completed} /> : null}
+          {tab === "findings" ? (
+            <DemoFindings redteam={redteamFindings} drift={driftFindings} mandate={mandateFindings} />
+          ) : null}
+          {tab === "redteam" ? (
+            <RedTeamAct
+              onExit={onExit}
+              onComplete={() => {
+                setCompleted((c) => ({ ...c, redteam: true }));
+                if (autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "redteam") advanceAuto();
+              }}
+              onUpdate={setRedteamFindings}
+              autoPlay={autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "redteam" ? autoKey : undefined}
+              autoNonce={autoNonce.current}
+            />
+          ) : null}
+          {tab === "drift" ? (
+            <DriftAct
+              onExit={onExit}
+              onComplete={() => {
+                setCompleted((c) => ({ ...c, drift: true }));
+                if (autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "drift") advanceAuto();
+              }}
+              onUpdate={setDriftFindings}
+              autoPlay={autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "drift" ? autoKey : undefined}
+              autoNonce={autoNonce.current}
+            />
+          ) : null}
+          {tab === "mandates" ? (
+            <MandateAct
+              onExit={onExit}
+              onComplete={() => {
+                setCompleted((c) => ({ ...c, mandates: true }));
+                if (autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "mandates") advanceAuto();
+              }}
+              onUpdate={setMandateFindings}
+              autoPlay={autoStep !== null && AUTO_SEQUENCE[autoStep].tab === "mandates" ? autoKey : undefined}
+              autoNonce={autoNonce.current}
+            />
+          ) : null}
+        </motion.div>
+      </AnimatePresence>
 
       <Dock
         items={DEMO_NAV.map((n) => {

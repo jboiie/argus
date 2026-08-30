@@ -1,4 +1,4 @@
-import { Panel, Stamp, Stat, StatStrip } from "../../components/ui";
+import { Panel, Reveal, Stamp, Stat, StatStrip } from "../../components/ui";
 import type { RedTeamRow } from "./RedTeamAct";
 import type { DriftUpdate } from "./DriftAct";
 import type { MandateUpdate } from "./MandateAct";
@@ -51,7 +51,7 @@ export function DemoFindings({
         {redteam.length === 0 ? (
           <Empty hint="No attacks run yet." />
         ) : (
-          <>
+          <Reveal delay={0}>
             <StatStrip>
               <Stat label="Attempts" value={redteam.length} />
               <Stat label="Defended" value={defended} tone="defended" />
@@ -68,7 +68,7 @@ export function DemoFindings({
                 </div>
               ))}
             </div>
-          </>
+          </Reveal>
         )}
       </section>
 
@@ -77,37 +77,39 @@ export function DemoFindings({
         {!drift ? (
           <Empty hint="No drift check run yet." />
         ) : (
-          <Panel className="mt-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="font-mono text-sm text-ink">{drift.category}</p>
-                <p className="font-mono text-2xs text-ink-3">{drift.checkType}</p>
-              </div>
-              <div className="flex gap-6 text-right">
+          <Reveal delay={150}>
+            <Panel className="mt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="tnum text-lg font-bold text-ink">{drift.checks}</div>
-                  <div className="font-mono text-2xs text-ink-3 uppercase">checks</div>
+                  <p className="font-mono text-sm text-ink">{drift.category}</p>
+                  <p className="font-mono text-2xs text-ink-3">{drift.checkType}</p>
                 </div>
-                <div>
-                  <div className="tnum text-lg font-bold text-caution">{drift.flagged}</div>
-                  <div className="font-mono text-2xs text-ink-3 uppercase">flagged</div>
+                <div className="flex gap-6 text-right">
+                  <div>
+                    <div className="tnum text-lg font-bold text-ink">{drift.checks}</div>
+                    <div className="font-mono text-2xs text-ink-3 uppercase">checks</div>
+                  </div>
+                  <div>
+                    <div className="tnum text-lg font-bold text-caution">{drift.flagged}</div>
+                    <div className="font-mono text-2xs text-ink-3 uppercase">flagged</div>
+                  </div>
                 </div>
               </div>
-            </div>
-            {drift.lastVerdict ? (
-              <div className="mt-3 border-t border-rule pt-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Stamp verdict={drift.lastVerdict.tag} />
-                  {drift.lastVerdict.cause ? (
-                    <span className="text-2xs text-ink-3">
-                      {[drift.lastVerdict.cause, drift.lastVerdict.severity].filter(Boolean).join(" · ")}
-                    </span>
-                  ) : null}
+              {drift.lastVerdict ? (
+                <div className="mt-3 border-t border-rule pt-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Stamp verdict={drift.lastVerdict.tag} />
+                    {drift.lastVerdict.cause ? (
+                      <span className="text-2xs text-ink-3">
+                        {[drift.lastVerdict.cause, drift.lastVerdict.severity].filter(Boolean).join(" · ")}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-2xs text-ink-3">{drift.lastVerdict.note}</p>
                 </div>
-                <p className="mt-1 text-2xs text-ink-3">{drift.lastVerdict.note}</p>
-              </div>
-            ) : null}
-          </Panel>
+              ) : null}
+            </Panel>
+          </Reveal>
         )}
       </section>
 
@@ -116,11 +118,13 @@ export function DemoFindings({
         {!mandate ? (
           <Empty hint="No mandate scenario run yet." />
         ) : (
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-ink-2">{mandate.label}</span>
-            <Stamp verdict={mandate.kind} />
-            {mandate.amount ? <span className="font-mono text-2xs text-ink-3">{mandate.amount}</span> : null}
-          </div>
+          <Reveal delay={300}>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+              <span className="text-ink-2">{mandate.label}</span>
+              <Stamp verdict={mandate.kind} />
+              {mandate.amount ? <span className="font-mono text-2xs text-ink-3">{mandate.amount}</span> : null}
+            </div>
+          </Reveal>
         )}
       </section>
     </div>
