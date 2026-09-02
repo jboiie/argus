@@ -84,6 +84,8 @@ redteam/  ── Pre-Deployment Engine        drift/  ── Post-Deployment Eng
 
 The mandate layer is the one piece that ties the two engines together: it's the concrete thing Track 01's "every money action explainable, bounded and gated" bar demands, and it's also the specific surface the red-team harness's `mandate_bypass` custom vulnerability targets — the same gate gets tested from both directions.
 
+**Why it matters even before money moves.** A payment link isn't a charge — the customer still has to pay it — so a forged authorization can look low-stakes. It isn't: the same check (`_has_genuine_confirmation` in `agent/reference_agent.py`) gates every money-moving action the agent can take, refunds included, so a bypass proven on link creation is a bypass proven everywhere that function runs. It also poisons the audit trail — a `Mandate` row with `status="authorized"` is supposed to be proof a human actually agreed to this, and a bypassed gate writes a false one whether or not the link ever gets paid. And Razorpay test-mode payment links are a capped, real resource (30/business) — an agent that can be talked into generating them is a resource-abuse surface with zero money moved. The bar here isn't "did money move," it's "did the agent act on consent that was never actually given" — refunds just make that same failure expensive.
+
 ## What Argus Actually Caught
 
 The point of a QA harness is that it finds things. The headline result is a real, exploitable bypass Argus found **in its own reference agent's mandate gate** — the single most security-critical component in the project.

@@ -53,9 +53,11 @@ export function Mandates({ mandates }: { mandates: Mandate[] }) {
 
       <Note>
         Every mandate creation attempt is logged, authorized or denied, live or stubbed — Track 01's
-        <em> "every money action explainable, bounded and gated"</em> bar. The amount is computed
-        server-side from the cart against real catalog prices; the model never states a number that
-        reaches Razorpay.
+        <em> "every money action explainable, bounded and gated"</em> bar. This isn't just about
+        whether a link gets paid: the same check also gates refunds, and an unauthorized
+        "authorized" row is a false record even if nobody ever pays it. The amount itself is
+        computed server-side from the cart against real catalog prices; the model never states a
+        number that reaches Razorpay.
       </Note>
 
       {bypassed > 0 ? (
