@@ -4,6 +4,8 @@ Razorpay AI Builder Buildathon — Open Track Submission
 
 Agentic commerce agents will hallucinate prices, invent policies, and drift over time. Argus is the QA layer for that: a pre-deployment red-team harness (catches issues before an agent ships) plus a post-deployment drift sentinel (catches issues that emerge after it's live), both running against one small reference commerce agent, feeding one live dashboard.
 
+**Why now.** Razorpay's own Agent Studio — live since March 2026, built on Anthropic's Claude Agent SDK — already has merchants running autonomous agents for dispute resolution and failed-payment recovery: this isn't a hypothetical, it's the exact class of system already shipping. OpenAI is facing an FTC complaint (March 2026) alleging ChatGPT's Instant Checkout misrepresented refund eligibility — agentic commerce hallucination, in production, in an active regulatory case (verify current status before treating as settled). FINRA's Dec 2025 Annual Regulatory Oversight Report explicitly calls for *ongoing* GenAI output monitoring, not one-time compliance checks — precisely what the drift sentinel half of this project does. And Google's AP2 (Agent Payments Protocol) is built around cryptographically-scoped "mandates" proving a buyer authorized a specific agent action before money moves — the same concept behind this project's mandate gate, below.
+
 ## Status
 
 Reference agent, pre-deployment red-team harness, and post-deployment drift sentinel all built and verified against live Supabase data. The dashboard is a React SPA (`web/`) that reads Supabase directly on a read-only anon key — run it locally (see below); it isn't deployed, since a public link isn't a requirement for this track. See `BUGS.md` for what broke and how it was fixed along the way.
@@ -81,6 +83,10 @@ redteam/  ── Pre-Deployment Engine        drift/  ── Post-Deployment Eng
         drills into the logged conversation behind any
         selected attack, incident, or mandate.
 ```
+
+**Why the red-team harness matters.** An unattacked agent looks fine right up until it isn't — a hallucinated discount code or a catalog-injection prompt costs nothing to demonstrate in a harness, but real money once it's live. Catching it here costs a few Groq calls; catching it in production costs a refund dispute, or the kind of FTC-complaint headline cited above.
+
+**Why the drift sentinel matters.** An agent correct at launch doesn't stay correct — prices and policies change, and a cached or extrapolated answer has no way of knowing that on its own. Nothing about a stale or fabricated claim looks different from a true one in the moment it's said; watching for it after deployment is the *ongoing* monitoring FINRA's report calls out, not a one-time pre-launch check.
 
 The mandate layer is the one piece that ties the two engines together: it's the concrete thing Track 01's "every money action explainable, bounded and gated" bar demands, and it's also the specific surface the red-team harness's `mandate_bypass` custom vulnerability targets — the same gate gets tested from both directions.
 

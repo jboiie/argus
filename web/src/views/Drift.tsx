@@ -15,6 +15,7 @@ import { computeFalsePositiveCost, driftCauseBreakdown, driftIncidentsOverTime }
 import type { DriftIncident, Run } from "../lib/types";
 import {
   Empty,
+  Note,
   Panel,
   Select,
   Stat,
@@ -86,6 +87,13 @@ export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: R
           hint="Never completed — flagged is null, not false"
         />
       </StatStrip>
+
+      <Note>
+        Every check here re-verifies a previous or adjacent claim against real ground truth — a
+        price, a policy, or three independent samples of a question with no ground truth at all. A
+        flagged row means the agent's answer stopped matching reality after it was already live —
+        the failure mode a one-time pre-launch test can never catch.
+      </Note>
 
       <div className="grid items-start gap-5 xl:grid-cols-2">
         <Panel

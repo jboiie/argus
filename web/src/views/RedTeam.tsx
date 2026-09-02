@@ -73,6 +73,13 @@ export function RedTeam({ events, runs }: { events: AttackEvent[]; runs: Run[] }
         <Stat label="Attack success rate" value={`${overall.toFixed(2)}%`} tone="brand" />
       </StatStrip>
 
+      <Note>
+        Every attempt DeepTeam makes against the reference agent is logged and scored — bypassed,
+        defended, or errored. A category reading 0% here means it was actually tested against a
+        real attack, not just assumed safe: the alternative is finding out from a support ticket
+        instead of a test.
+      </Note>
+
       {bypassed > 0 ? (
         <Note tone="warn">
           <strong className="text-ink">Read every bypass before believing it.</strong> DeepTeam's
