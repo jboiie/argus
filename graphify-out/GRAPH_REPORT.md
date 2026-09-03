@@ -1,16 +1,16 @@
-# Graph Report - argus  (2026-08-30)
+# Graph Report - argus  (2026-09-04)
 
 ## Corpus Check
-- 81 files · ~276,674 words
+- 81 files · ~279,317 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 595 nodes · 1002 edges · 47 communities (33 shown, 14 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 39 edges (avg confidence: 0.78)
+- 600 nodes · 1108 edges · 33 communities (26 shown, 7 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 10 edges (avg confidence: 0.56)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a84f931a`
+- Built from commit: `61a97db4`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -29,65 +29,51 @@
 - graphify
 - extraction-spec.md
 - reference_agent.py
-- razorpay_mcp.py
-- DriftAct.tsx
-- main
-- Client
+- ui.tsx
+- GroqModel
 - Argus — Agent QA & Monitoring Suite for Agentic Commerce
 - Bugs & Fixes
 - App.tsx
 - Argus — Data Model
 - mandate_attacks.py
 - devDependencies
-- Client
 - compilerOptions
 - compilerOptions
 - plugins
 - Argus dashboard (web)
 - verify-rls.mjs
 - tsconfig.json
-- sampler.py
-- Dock.tsx
-- supabase_client.py
-- cache_data
-- cache_resource
-- DataFrame
-- Series
-- GroqModel
+- get_client
 - Stepper.tsx
-- BaseModel
-- classify.py
-- model_callback.py
-- unresolved_critical_refs
 
 ## God Nodes (most connected - your core abstractions)
-1. `compilerOptions` - 18 edges
-2. `ask_with_tools()` - 17 edges
-3. `GroqModel` - 16 edges
-4. `react` - 16 edges
-5. `compilerOptions` - 15 edges
-6. `execute_tool_call()` - 13 edges
-7. `main()` - 12 edges
-8. `ask_async()` - 12 edges
-9. `get_client()` - 12 edges
-10. `What You Must Do When Invoked` - 12 edges
+1. `get_client()` - 23 edges
+2. `ask_with_tools()` - 20 edges
+3. `GroqModel` - 19 edges
+4. `compilerOptions` - 18 edges
+5. `react` - 16 edges
+6. `execute_tool_call()` - 15 edges
+7. `create_run()` - 15 edges
+8. `end_run()` - 15 edges
+9. `compilerOptions` - 15 edges
+10. `ask_async()` - 14 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `run_scenario()` --calls--> `clear_cart()`  [INFERRED]
-  redteam/mandate_attacks.py → agent/cart.py
 - `main()` --indirect_call--> `ask_with_tools()`  [INFERRED]
   redteam/mandate_attacks.py → agent/reference_agent.py
-- `_log_mandate_safe()` --calls--> `log_mandate()`  [INFERRED]
+- `check_self_consistency()` --uses--> `GroqModel`  [INFERRED]
+  drift/self_consistency.py → redteam/groq_model.py
+- `run_scenario()` --calls--> `clear_cart()`  [EXTRACTED]
+  redteam/mandate_attacks.py → agent/cart.py
+- `make_model_callback()` --calls--> `ask_with_tools()`  [EXTRACTED]
+  redteam/model_callback.py → agent/reference_agent.py
+- `_log_mandate_safe()` --calls--> `get_client()`  [EXTRACTED]
   agent/tools.py → telemetry/supabase_client.py
-- `main()` --calls--> `create_run()`  [INFERRED]
-  redteam/run_asi.py → telemetry/supabase_client.py
-- `main()` --calls--> `end_run()`  [INFERRED]
-  redteam/run_asi.py → telemetry/supabase_client.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (47 total, 14 thin omitted)
+## Communities (33 total, 7 thin omitted)
 
 ### Community 0 - "audit.py"
 Cohesion: 0.38
@@ -127,19 +113,15 @@ Nodes (17): 0. Before You Write Any Code, 1. Context & Stakes, 2. The One-Line I
 
 ### Community 13 - "reference_agent.py"
 Cohesion: 0.07
-Nodes (54): add_item(), apply_coupon(), _cart(), clear_cart(), compute_total(), demo(), load_coupons(), load_products() (+46 more)
+Nodes (58): add_item(), apply_coupon(), _cart(), clear_cart(), compute_total(), demo(), load_coupons(), load_products() (+50 more)
 
-### Community 14 - "razorpay_mcp.py"
-Cohesion: 0.43
-Nodes (6): _auth_header(), call_tool(), demo(), list_tools(), MCP client wiring against Razorpay's remote MCP server. Connects with the…, Read-only: returns the names of tools Razorpay's MCP server exposes.
+### Community 15 - "ui.tsx"
+Cohesion: 0.06
+Nodes (58): react, Conversation(), RunSelector(), CompletionCard(), Empty(), Note(), Panel(), Reveal() (+50 more)
 
-### Community 15 - "DriftAct.tsx"
-Cohesion: 0.11
-Nodes (30): Panel(), Stamp(), Stat(), StatStrip(), rawSleep(), RunCtl, sleep(), typeInto() (+22 more)
-
-### Community 16 - "main"
-Cohesion: 0.21
-Nodes (16): main(), main(), main(), asi_code_for(), CategoryASR, compute_asr(), demo(), framework_asi_map() (+8 more)
+### Community 16 - "GroqModel"
+Cohesion: 0.08
+Nodes (40): AsyncOpenAI, BadRequestError, DeepEvalBaseLLM, RateLimitError, Commerce-specific vulnerabilities not covered by OWASP_ASI_2026's standard…, demo(), GroqModel, _is_empty_generation() (+32 more)
 
 ### Community 19 - "Argus — Agent QA & Monitoring Suite for Agentic Commerce"
 Cohesion: 0.20
@@ -147,15 +129,15 @@ Nodes (9): Architecture, Argus — Agent QA & Monitoring Suite for Agentic Comme
 
 ### Community 21 - "App.tsx"
 Cohesion: 0.06
-Nodes (59): react, App(), NAV, TabId, Conversation(), Iris(), RunSelector(), ShuffleDirection (+51 more)
+Nodes (43): App(), NAV, TabId, Dock(), DockItemData, Hoverable, Iris(), Shuffle() (+35 more)
 
 ### Community 22 - "Argus — Data Model"
 Cohesion: 0.17
 Nodes (11): Argus — Data Model, Cross-cutting conventions, Currency convention, Entity 0: Run (Supabase), Entity 1: Product (`catalog.json`), Entity 2.5: Coupon (`coupons.json`), Entity 2: Policy (`policies.json`), Entity 3: Mandate (logged per authorization attempt, Supabase) (+3 more)
 
 ### Community 24 - "mandate_attacks.py"
-Cohesion: 0.19
-Nodes (16): _AttackEventShim, log_to_supabase(), main(), print_results(), Targeted mandate-bypass scenarios - the attacks DeepTeam's generic single-turn…, A real UUID, not a readable slug. mandates.session_id and…, ask_fn(session_id, run_id, message) -> str. Injected rather than imported so…, Attack scenarios only - the control is a suite-validity check, not an attack,… (+8 more)
+Cohesion: 0.17
+Nodes (18): _AttackEventShim, log_to_supabase(), main(), print_results(), Targeted mandate-bypass scenarios - the attacks DeepTeam's generic single-turn…, A real UUID, not a readable slug. mandates.session_id and…, ask_fn(session_id, run_id, message) -> str. Injected rather than imported so…, Attack scenarios only - the control is a suite-validity check, not an attack,… (+10 more)
 
 ### Community 25 - "devDependencies"
 Cohesion: 0.04
@@ -174,59 +156,35 @@ Cohesion: 0.22
 Nodes (8): oxc, typescript, warn, plugins, rules, react/only-export-components, react/rules-of-hooks, $schema
 
 ### Community 30 - "Argus dashboard (web)"
-Cohesion: 0.29
-Nodes (6): Argus dashboard (web), Build, Deploy, Local, Rendering untrusted text, Why a static SPA and not a backend
+Cohesion: 0.33
+Nodes (5): Argus dashboard (web), Build, Local, Rendering untrusted text, Why a static SPA and not a backend
 
-### Community 34 - "sampler.py"
-Cohesion: 0.12
-Nodes (26): AsyncOpenAI, check_faithfulness(), check_numeric(), demo(), DriftCheckResult, _extract_number(), _judge_client(), Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness for… (+18 more)
-
-### Community 36 - "supabase_client.py"
-Cohesion: 0.17
-Nodes (22): Client, inject(), Step 19: deliberately inject one ground-truth change mid-build, confirm the…, _set_price(), verify(), _log_turn_safe(), main(), One-off review CLI - marks drift_incidents rows reviewed. service_role key… (+14 more)
-
-### Community 41 - "GroqModel"
-Cohesion: 0.18
-Nodes (7): DeepEvalBaseLLM, Commerce-specific vulnerabilities not covered by OWASP_ASI_2026's standard…, demo(), GroqModel, Groq-backed judge/simulator model for DeepTeam - keeps attack generation and…, Wires the commerce-specific custom vulnerabilities (build step 12) against the…, Step 15 - full-volume red-team run. Combines the entire OWASP_ASI_2026…
+### Community 36 - "get_client"
+Cohesion: 0.07
+Nodes (62): demo(), Graceful-degradation gate - PROJECT_DESC.md Section 4.4 / DataModel.md's Drift…, unresolved_critical_refs(), ask_async(), load_ground_truth(), Async single-turn Q&A, same grounding as ask() - used by the drift sampler…, classify_drift_cause(), classify_severity() (+54 more)
 
 ### Community 42 - "Stepper.tsx"
-Cohesion: 0.14
-Nodes (5): Step(), StepperProps, stepVariants, CompletedActs, Overview()
-
-### Community 43 - "BaseModel"
-Cohesion: 0.27
-Nodes (8): BadRequestError, BaseModel, RateLimitError, _is_empty_generation(), Pydantic's default model_json_schema() doesn't satisfy Groq's strict…, True for the transient case: Groq's strict-schema mode occasionally returns 400…, _retry_after_seconds(), _to_strict_schema()
-
-### Community 44 - "classify.py"
-Cohesion: 0.29
-Nodes (9): classify_drift_cause(), classify_severity(), demo(), _git_history_values(), _load_ground_truth(), drift_cause and severity classification - build step 19 (PROJECT_DESC.md…, critical | moderate | None (self_consistency rows have no ground truth to be…, Every historical value `item_id`'s `value_field` has held in `filename`'s git… (+1 more)
-
-### Community 45 - "model_callback.py"
-Cohesion: 0.24
-Nodes (8): demo(), make_model_callback(), Bridges DeepTeam's model_callback contract to the reference agent. DeepTeam…, Bind run_id via closure - keeps model_callback's exact (input, turns=None)…, _seed_session(), session_id_for(), Wires DeepTeam's OWASP_ASI_2026 framework against the reference agent. Small-…, RTTurn
-
-### Community 46 - "unresolved_critical_refs"
-Cohesion: 0.47
-Nodes (5): demo(), Graceful-degradation gate - PROJECT_DESC.md Section 4.4 / DataModel.md's Drift…, unresolved_critical_refs(), fetch_unresolved_critical_refs(), ground_truth_refs with an unresolved critical drift incident - DataModel.md's…
+Cohesion: 0.15
+Nodes (6): Step(), Stepper(), StepperProps, stepVariants, CompletedActs, Overview()
 
 ## Knowledge Gaps
-- **186 isolated node(s):** `VerdictInfo`, `Beat`, `Scenario`, `SCENARIOS`, `CategoryKey` (+181 more)
+- **190 isolated node(s):** `$schema`, `typescript`, `oxc`, `react/rules-of-hooks`, `warn` (+185 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `App.tsx` to `Stepper.tsx`, `Dock.tsx`, `plugins`, `DriftAct.tsx`?**
+- **Why does `get_client()` connect `get_client` to `mandate_attacks.py`, `GroqModel`, `reference_agent.py`?**
+  _High betweenness centrality (0.021) - this node is a cross-community bridge._
+- **Why does `react` connect `ui.tsx` to `App.tsx`, `Stepper.tsx`, `plugins`?**
   _High betweenness centrality (0.019) - this node is a cross-community bridge._
-- **Why does `ask_with_tools()` connect `reference_agent.py` to `mandate_attacks.py`, `unresolved_critical_refs`?**
-  _High betweenness centrality (0.016) - this node is a cross-community bridge._
-- **Why does `GroqModel` connect `GroqModel` to `main`, `sampler.py`, `BaseModel`?**
+- **Why does `GroqModel` connect `GroqModel` to `get_client`?**
   _High betweenness centrality (0.012) - this node is a cross-community bridge._
-- **Are the 7 inferred relationships involving `ask_with_tools()` (e.g. with `load_coupons()` and `unresolved_critical_refs()`) actually correct?**
-  _`ask_with_tools()` has 7 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `VerdictInfo`, `Beat`, `Scenario` to the rest of the system?**
-  _186 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Are the 4 inferred relationships involving `GroqModel` (e.g. with `check_self_consistency()` and `main()`) actually correct?**
+  _`GroqModel` has 4 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `$schema`, `typescript`, `oxc` to the rest of the system?**
+  _190 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `What You Must Do When Invoked` be split into smaller, more focused modules?**
   _Cohesion score 0.07407407407407407 - nodes in this community are weakly interconnected._
 - **Should `Argus — Agent QA & Monitoring Suite for Agentic Commerce` be split into smaller, more focused modules?**
