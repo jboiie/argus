@@ -2,9 +2,9 @@
 
 Single running log — chronological and structured at once. Every real bug or gap found during the build goes here, as it happens, in this format. Nothing is split across a second file anymore (`DEBUG_JOURNAL.md` is retired, its history folded in below).
 
-**Submission-relevant note** flags which deliverable an entry feeds: the video's "what broke" segment, the README's known-issues section, or blank if it's build-internal and not worth surfacing at submission.
+**Note** flags which artifact an entry is relevant to: a demo video's "what broke" segment, the README's known-issues section, or blank if it's purely internal build detail.
 
-| Date | Component | Symptom | Root Cause | Fix | Submission-relevant note | Status |
+| Date | Component | Symptom | Root Cause | Fix | Note | Status |
 |---|---|---|---|---|---|---|
 | 2026-08-24 | External API / Reference Agent | `gemini-2.5-flash-lite` returns `404 NOT_FOUND` | Google retired 2.5 Flash-Lite for new API keys ahead of full retirement (Oct 16 2026); PROJECT_DESC.md's pricing reference predated the change | Switched to `gemini-3.5-flash-lite` in `agent/reference_agent.py`; corrected pricing in PROJECT_DESC.md ($0.30/$2.50 per M, not $0.10/$0.40) | | Fixed |
 | 2026-08-24 | External API / Reference Agent (MCP) | Every Razorpay MCP connection returned `401 OAUTH_BAD_TOKEN`; response's `WWW-Authenticate: Bearer` header suggested a full OAuth 2.1 flow was needed | Razorpay's own docs and GitHub README both say `Authorization: Bearer <base64(key:secret)>`; the live server actually requires `Authorization: Basic <base64(key:secret)>` — confirmed via raw `httpx` POST bypassing the MCP SDK, found buried in the README's Claude Desktop config JSON snippet. Secondary annoyance found during the same debug: the `mcp` SDK (v2.0.0) wraps every failure from nested `async with` blocks in nested `ExceptionGroup`s, so `except MCPError` never matches without `except*`/manual unwrapping. | `agent/razorpay_mcp.py::_auth_header()` changed `Bearer` to `Basic` | video | Fixed |
