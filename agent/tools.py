@@ -1,6 +1,6 @@
 """Bridges Razorpay MCP tools into Gemini function-calling, plus the
-local cart/coupon tools (stretch goal - cart + coupon + multi-step
-checkout, PROJECT_DESC.md Section 4.1).
+local cart/coupon tools (cart + coupon + multi-step checkout, added as
+a stretch goal).
 
 Money-moving tools go through the mandate gate first (agent/mandate.py).
 add_to_cart/apply_coupon are local state mutations, not MCP calls, and
@@ -104,8 +104,8 @@ async def execute_tool_call(
     """Dispatch a Gemini-requested tool call. Money-moving tools go through the mandate gate first.
 
     blocked_refs: product_ids with an unresolved critical drift incident
-    (agent/drift_guard.py, PROJECT_DESC.md Section 4.4's graceful-degradation
-    behavior) - a Mandate touching one is held, never authorized, so a
+    (agent/drift_guard.py's graceful-degradation behavior, see DataModel.md's
+    Drift Incident entity) - a Mandate touching one is held, never authorized, so a
     possibly-wrong price never reaches a real payment link.
     """
     if name == "add_to_cart":

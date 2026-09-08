@@ -1,5 +1,5 @@
-"""Per-session cart state - stretch goal (cart + coupon + multi-step
-checkout, PROJECT_DESC.md Section 4.1's stretch goal).
+"""Per-session cart state - cart + coupon + multi-step checkout, added
+as a stretch goal beyond the original single-item scope.
 
 In-memory, keyed by session_id, same pattern as reference_agent.py's
 _SESSION_HISTORY. Deliberately rule-based, not LLM-involved anywhere -

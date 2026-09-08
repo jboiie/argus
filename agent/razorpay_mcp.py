@@ -3,8 +3,8 @@
 Connects with the merchant's test-mode key/secret, discovers available
 tools, and calls them. Read-only calls (list_tools, fetch_*) are free to
 run anytime. create_payment_link and other money-moving tools must be
-mocked during bulk/automated runs (30-link test-mode cap, see PROJECT_DESC.md
-Section 5) - only called for real during manual smoke tests and the demo.
+mocked during bulk/automated runs (30-link test-mode cap, see README.md's
+Known Issues) - only called for real during manual smoke tests and the demo.
 """
 
 import base64

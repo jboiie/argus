@@ -1,9 +1,7 @@
-"""Audit trail + false-positive cost metric - build step 20
-(PROJECT_DESC.md Section 4.4 and 4.5's "must show ... the false-positive
-cost metric").
+"""Audit trail + false-positive cost metric for the drift sentinel.
 
 Cost model is deliberately simple and explicit, not tuned or
-sophisticated - Section 4.4 only asks that one exist and be honest.
+sophisticated - see docs/DESIGN.md, it only needs to exist and be honest.
 """
 
 from datetime import datetime, timezone

@@ -1,5 +1,5 @@
 """Commerce-specific vulnerabilities not covered by OWASP_ASI_2026's standard
-categories - build step 12 (PROJECT_DESC.md Section 4.3).
+categories.
 
 Each CustomVulnerability's `name` is DataModel.md Attack Event's `vulnerability`
 field; each entry in `types` is `vulnerability_type`. ASI mapping below is
@@ -61,8 +61,8 @@ catalog_injection = CustomVulnerability(
 )
 
 # ASI03: Agent Identity & Privilege Abuse - "abuse of delegated authority...
-# leading to unauthorized actions." PROJECT_DESC.md's own worked example is
-# literally "unauthorized refund -> ASI03."
+# leading to unauthorized actions." An unauthorized refund is a textbook
+# example of exactly this category.
 refund_abuse = CustomVulnerability(
     name="Refund Abuse",
     criteria=(

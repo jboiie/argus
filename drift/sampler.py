@@ -1,5 +1,5 @@
 """Sampler that simulates repeated sessions asking overlapping questions
-against the reference agent - build step 18 (PROJECT_DESC.md Section 4.4).
+against the reference agent.
 
 Ties together all three check types from steps 16-17:
 - One numeric question per product (exact-match against catalog.json).
@@ -9,9 +9,8 @@ Ties together all three check types from steps 16-17:
 - A handful of hand-picked questions with no ground-truth basis at all
   (self-consistency).
 
-Meant to be run repeatedly across build days, not once - see
-PROJECT_DESC.md Section 4.4: "so the drift-over-time chart is a real
-timeline," not one synthetic batch.
+Meant to be run repeatedly over time, not once, so the drift-over-time
+chart is a real timeline rather than one synthetic batch.
 """
 
 import asyncio

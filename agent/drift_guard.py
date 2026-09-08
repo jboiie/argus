@@ -1,5 +1,5 @@
-"""Graceful-degradation gate - PROJECT_DESC.md Section 4.4 / DataModel.md's
-Drift Incident entity's graceful-degradation behavior rule. Before answering
+"""Graceful-degradation gate - see DataModel.md's Drift Incident entity for
+the graceful-degradation behavior rule. Before answering
 a question or authorizing a Mandate that touches a ground_truth_ref with an
 unresolved critical drift incident, the agent must not repeat the possibly-
 wrong value. This is the project's one concrete "failure recovery" behavior,

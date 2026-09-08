@@ -170,7 +170,7 @@ async def ask_async(question: str) -> str:
     return response.text
 
 
-MAX_TURNS = 6  # few turns of memory, per PROJECT_DESC.md Section 4.1 scope
+MAX_TURNS = 6  # bounded multi-turn memory, not full session/cart state
 
 
 def _is_real_user_turn(content) -> bool:

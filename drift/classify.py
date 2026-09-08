@@ -1,7 +1,7 @@
-"""drift_cause and severity classification - build step 19
-(PROJECT_DESC.md Section 4.4's staged drift injection proves this against
-a real incident). See DataModel.md's Drift Incident entity for the
-classification logic this implements.
+"""drift_cause and severity classification for the drift sentinel,
+proven against a real staged drift injection (see `drift/staged_injection.py`).
+See DataModel.md's Drift Incident entity for the classification logic
+this implements.
 
 Deliberately rule-based, not LLM-judged, for both fields - severity is a
 lookup against a fixed money-relevant topic set (Section 5's AI Judgment

@@ -1,10 +1,10 @@
 """Ground-truth diffing: exact-match for numeric fields, RAGAS Faithfulness
-for policy text - build step 16 (PROJECT_DESC.md Section 4.4).
+for policy text.
 
-Numeric fields are deliberately rule-based, not an LLM call - Section 5's
-"AI Judgment" axis penalizes forcing AI where deterministic logic would do.
-RAGAS is reserved for the genuinely fuzzy case: does a free-text policy
-answer match a free-text ground-truth claim.
+Numeric fields are deliberately rule-based, not an LLM call - see
+docs/DESIGN.md's "Rule-based vs. LLM-judged" section for why. RAGAS is
+reserved for the genuinely fuzzy case: does a free-text policy answer
+match a free-text ground-truth claim.
 """
 
 import os

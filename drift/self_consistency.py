@@ -1,5 +1,4 @@
-"""Self-consistency sampler for claims not covered by ground truth -
-build step 17 (PROJECT_DESC.md Section 4.4).
+"""Self-consistency sampler for claims not covered by ground truth.
 
 SelfCheckGPT-style: ask the same question multiple times, disagreement
 across the samples is the hallucination signal (there's no ground truth
