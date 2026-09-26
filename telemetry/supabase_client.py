@@ -96,6 +96,9 @@ def log_laya_drift_score(client: Client, incident_id: str, log: LayaDriftScoreLo
         "laya_latency_ms": log.laya_latency_ms,
         "ragas_latency_ms": log.ragas_latency_ms,
         "errored": log.errored,
+        "threshold": log.threshold,
+        "operating_point": log.operating_point,
+        "laya_checkpoint": log.laya_checkpoint,
     }
     client.table("laya_drift_scores").insert(row).execute()
 

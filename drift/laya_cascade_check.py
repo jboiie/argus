@@ -12,12 +12,24 @@ import time
 from dataclasses import dataclass
 
 from drift.diff import DriftCheckResult, check_faithfulness
-from redteam.laya_cascade import calibrate, cascade_decides_alone, laya_label, load_temperature, score_faithfulness
+from redteam.laya_cascade import (
+    LAYA_CHECKPOINT,
+    calibrate,
+    cascade_decides_alone,
+    laya_label,
+    load_temperature,
+    score_faithfulness,
+)
 
 
 @dataclass
 class LayaDriftScoreLog:
-    """One row for the laya_drift_scores table (see scripts/migrate_004_laya_drift_scores.sql)."""
+    """One row for the laya_drift_scores table (see
+    scripts/migrate_004_laya_drift_scores.sql). Written for every cascade
+    check regardless of verdict - drift/sampler.py's run_and_log calls
+    log_drift_incident (and, when this is set, log_laya_drift_score) for
+    every sampled check unconditionally, not only flagged ones, so "%
+    decided by Laya" over these rows uses the right denominator."""
     topic: str
     p_faithful: float  # calibrated
     decided_by: str  # "laya" | "ragas"
@@ -25,11 +37,14 @@ class LayaDriftScoreLog:
     laya_latency_ms: float
     ragas_latency_ms: float | None  # null unless escalated
     errored: bool
+    threshold: float  # the t this check was decided against
+    operating_point: str  # "accuracy" | "cost" - which named point `threshold` came from
+    laya_checkpoint: str = LAYA_CHECKPOINT
 
 
 async def cascade_check_faithfulness(
     topic: str, question: str, policy_id: str, claim: str, response: str,
-    context_claims: list[str], threshold: float,
+    context_claims: list[str], threshold: float, operating_point: str,
 ) -> tuple[DriftCheckResult, LayaDriftScoreLog]:
     laya_result = score_faithfulness(question, context_claims, response)
     temperature = load_temperature()
@@ -45,6 +60,7 @@ async def cascade_check_faithfulness(
         log = LayaDriftScoreLog(
             topic=topic, p_faithful=p_calibrated, decided_by="laya", final_verdict=label,
             laya_latency_ms=laya_result.latency_ms, ragas_latency_ms=None, errored=False,
+            threshold=threshold, operating_point=operating_point,
         )
         return check, log
 
@@ -57,6 +73,7 @@ async def cascade_check_faithfulness(
     log = LayaDriftScoreLog(
         topic=topic, p_faithful=p_calibrated, decided_by="ragas", final_verdict=final_verdict,
         laya_latency_ms=laya_result.latency_ms, ragas_latency_ms=ragas_latency_ms, errored=errored,
+        threshold=threshold, operating_point=operating_point,
     )
     return check, log
 

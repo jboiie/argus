@@ -119,7 +119,8 @@ async def run_session(session_id: str) -> list[tuple[DriftCheckResult, list[str]
         for claim in claims:
             if LAYA_CASCADE_ENABLED:
                 result, laya_log = await cascade_check_faithfulness(
-                    topic, question, claim["id"], claim["claim"], answer, context, threshold,
+                    topic, question, claim["id"], claim["claim"], answer, context,
+                    threshold, LAYA_CASCADE_OPERATING_POINT,
                 )
             else:
                 result = await check_faithfulness(question, claim["id"], claim["claim"], answer, context_claims=context)
