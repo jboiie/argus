@@ -1,0 +1,16 @@
+{
+  "policy_refund_window": "calibration",
+  "policy_shipping_domestic_cost": "calibration",
+  "policy_warranty_duration": "calibration",
+  "policy_discount_stacking": "calibration",
+  "policy_refund_receipt": "sweep",
+  "policy_refund_sale_items": "sweep",
+  "policy_shipping_free_threshold": "sweep",
+  "policy_shipping_delivery_time": "sweep",
+  "policy_cancellation_window": "sweep",
+  "policy_discount_validity": "sweep",
+  "policy_refund_processing_time": "test",
+  "policy_shipping_international": "test",
+  "policy_warranty_exclusions": "test",
+  "policy_cancellation_shipped": "test"
+}
