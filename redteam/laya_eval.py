@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 from drift.diff import FAITHFULNESS_THRESHOLD
-from redteam.laya_calibrate import CALIBRATION_OUT_PATH as TEMPERATURE_PATH
+from redteam.laya_cascade import ACCURACY_POINT_T, COST_POINT_T, load_temperature
 from redteam.laya_threshold_sweep import (
     classify_metrics,
     laya_predicted_label,
@@ -27,9 +27,6 @@ from redteam.laya_threshold_sweep import (
 
 ROOT = Path(__file__).resolve().parent.parent
 EVAL_OUT_PATH = ROOT / "data" / "laya_faithfulness_eval.json"
-
-COST_POINT_T = 0.50
-ACCURACY_POINT_T = 0.80
 
 
 def _fmt_metrics(name: str, m: dict) -> str:
@@ -66,7 +63,7 @@ def live_flag_counts(live_rows: list[dict], temperature: float, tuned_threshold:
 
 
 def main() -> None:
-    temperature = json.loads(TEMPERATURE_PATH.read_text(encoding="utf-8"))["temperature"]
+    temperature = load_temperature()
     sweep_rows = load_split_rows("sweep")
     tuned_threshold, _ = tune_ragas_threshold(sweep_rows)
     print(f"RAGAS-tuned threshold (from sweep, applied as-is to test): t={tuned_threshold}\n")

@@ -9,11 +9,26 @@ calibration) can be imported from an environment that doesn't have the
 actually calls load_laya_agent(), needs to run in the laya-bench env.
 """
 
+import json
 import math
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 EPS = 1e-6
+
+# The two operating points fixed on the sweep split before the test split
+# was touched (see PROJECT_DESC.md's "two operating points" resolution).
+# Cost point: the original lowest-t rule (Laya decides every row alone).
+# Accuracy point: the sweep curve's balanced-accuracy peak.
+COST_POINT_T = 0.50
+ACCURACY_POINT_T = 0.80
+
+TEMPERATURE_PATH = Path(__file__).resolve().parent.parent / "data" / "laya_faithfulness_calibration.json"
+
+
+def load_temperature(path: Path = TEMPERATURE_PATH) -> float:
+    return json.loads(path.read_text(encoding="utf-8"))["temperature"]
 
 FAITHFULNESS_QUESTION = {
     "faithfulness": {

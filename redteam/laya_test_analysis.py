@@ -4,21 +4,18 @@ laya_eval.py used - no new model calls, no re-tuning, test untouched
 beyond reading its already-scored rows.
 """
 
-import json
 from math import comb
 from pathlib import Path
 
 from drift.diff import FAITHFULNESS_THRESHOLD
-from redteam.laya_calibrate import CALIBRATION_OUT_PATH as TEMPERATURE_PATH
 from redteam.laya_calibrate import apply_temperature
+from redteam.laya_cascade import ACCURACY_POINT_T, load_temperature
 from redteam.laya_threshold_sweep import (
     classify_metrics,
     laya_predicted_label,
     load_split_rows,
     ragas_predicted_label,
 )
-
-ACCURACY_POINT_T = 0.80
 
 
 def cascade_predicted_label(row: dict, temperature: float, threshold: float) -> str:
@@ -53,7 +50,7 @@ def mcnemar_compare(name_a: str, preds_a: list[str], name_b: str, preds_b: list[
 
 
 def main() -> None:
-    temperature = json.loads(TEMPERATURE_PATH.read_text(encoding="utf-8"))["temperature"]
+    temperature = load_temperature()
     test_rows = load_split_rows("test")
     truth = [r["intended_label"] for r in test_rows]
 
