@@ -326,6 +326,49 @@ step is entirely prerequisite to everything after it.
   by `variant_type`, then the 20 live-agent rows last - a flagged row
   appears once, in the flagged section only.
 
+**Labeling rule (user-confirmed, 2026-09-27), applied by manual review of
+`data/faithfulness_review.md`:**
+- **Faithful:** everything the answer states is supported by the claims.
+  Omitting other claims is fine. Generic courtesy lines ("let us know if
+  you have questions") are fine.
+- **Unfaithful:** adds a fact, condition, number, promise, or process not
+  in the claims, or makes a blanket statement that contradicts another
+  claim (e.g. "every order pays 99 rupees" vs. free shipping above 999).
+- **Dropped:** borderline cases - speculation about future changes, vague
+  hedges, outcomes borrowed from another topic.
+
+**Checker bugs found by this review (not re-run - the manual review
+already corrected their output, see below):**
+- The LLM substance check treated *omission* as unfaithfulness - most of
+  the 39 flagged `faithful_paraphrase` rows were paraphrases that
+  correctly stuck to one claim's content but didn't restate every other
+  claim under the same topic, which the check's prompt didn't distinguish
+  from a genuine unsupported addition.
+- The `stale_number` regex (`_NUMBER_RE`, digits only) missed number
+  *words* - a corruption changing "one" to "two" has no digit for the
+  regex to compare, so it can't detect that class of stale-number variant.
+- The single `unsupported_addition` flag was a correct row (false
+  positive on the checker's part, not a real issue with the data).
+
+**Review outcome, applied via `scripts/apply_faithfulness_review.py`**
+(kept as a script rather than an ad-hoc edit, so each row's relabeling
+traces to a specific line in the review reply rather than a silent
+hand-edit): 17 rows flipped `faithful` → `unfaithful`, 20 rows dropped
+(all borderline per the rule above), all 20 live-agent rows labeled
+`faithful` (near-verbatim policy recitations) and reported as a separate
+group in every result table, never pooled into the main faithful/
+unfaithful metrics. Every other flagged row keeps its original intended
+label - the checker was wrong on all of them per the bugs above.
+
+Final counts (variants only, 326 rows, excludes the 20 live rows):
+**128 faithful / 178 unfaithful.** By split: calibration 30f/58u (88),
+sweep 62f/72u (134), test 36f/48u (84). The class balance shifted toward
+unfaithful again after review (was ~50/50 pre-review) - real corrections
+outweighed the rebalancing effort, which is expected: the automated
+generator's rebalancing targeted raw counts, not review-verified counts.
+`laya_calibrate.py` (Step 3) still class-balances its own calibration-split
+weighting regardless of this raw imbalance, per the original plan.
+
 ### Step 3 — cascade design (plan only)
 
 **Files (not yet built):**
