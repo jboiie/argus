@@ -360,7 +360,7 @@ group in every result table, never pooled into the main faithful/
 unfaithful metrics. Every other flagged row keeps its original intended
 label - the checker was wrong on all of them per the bugs above.
 
-Final counts (variants only, 326 rows, excludes the 20 live rows):
+Final counts (variants only, 306 rows after the 20 drops, excludes the 20 live rows):
 **128 faithful / 178 unfaithful.** By split: calibration 30f/58u (88),
 sweep 62f/72u (134), test 36f/48u (84). The class balance shifted toward
 unfaithful again after review (was ~50/50 pre-review) - real corrections
