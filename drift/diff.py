@@ -16,7 +16,7 @@ from openai import AsyncOpenAI
 from ragas.llms import llm_factory
 from ragas.metrics.collections import Faithfulness
 
-from redteam.groq_model import DEFAULT_MODEL, GROQ_BASE_URL
+from redteam.groq_model import DEFAULT_MODEL, GROQ_BASE_URL, MAX_COMPLETION_TOKENS
 
 # Below this Faithfulness score, a response is flagged as drifted. RAGAS
 # decomposes a response into individual claims and checks each against the
@@ -103,7 +103,16 @@ async def check_faithfulness(question: str, policy_id: str, claim: str, response
     `claim` (the specific tracked claim) still becomes `expected`."""
     contexts = context_claims if context_claims else [claim]
     try:
-        scorer = Faithfulness(llm=llm_factory(DEFAULT_MODEL, client=_judge_client()))
+        scorer = Faithfulness(llm=llm_factory(
+            DEFAULT_MODEL, client=_judge_client(),
+            # DEFAULT_MODEL is a reasoning model (openai/gpt-oss-20b). Without
+            # these, llm_factory's default max_tokens=1024 competes with
+            # hidden reasoning tokens for the same budget and can truncate
+            # the claim-decomposition JSON - see redteam/groq_model.py's
+            # _kwargs(), which sets the same two options for every other
+            # Groq call in this repo.
+            max_tokens=MAX_COMPLETION_TOKENS, extra_body={"reasoning_format": "hidden"},
+        ))
         result = await scorer.ascore(user_input=question, response=response, retrieved_contexts=contexts)
         score = result.value
     except Exception as exc:
