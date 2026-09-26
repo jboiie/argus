@@ -97,3 +97,320 @@ Laya's own benchmarks are from a general ~20-class intent-classification
 table, not a jailbreak/guard-specific one — not to be presented as
 expected accuracy on translated jailbreak detection, which remains
 unmeasured by any source until run directly.
+
+## Laya cascade — pre-flight audit (2026-09-26)
+
+Same classes of bug that corrupted Aegis's early numbers (see sibling doc's
+"Baseline findings"), checked against Argus before building the cascade on
+top of it. Nothing fixed yet, per instruction — findings and proposed fixes
+only.
+
+**1. Hardcoded/unverified model names.**
+- `agent/reference_agent.py:26` — `MODEL = "gemini-3.5-flash-lite"`, a bare
+  string constant, no env override, three call sites (`ask`, `ask_async`,
+  and the tool-calling path) all read the same global. Whether this model
+  id is still current on Google's side hasn't been checked against a live
+  model list. **Proposed fix:** move to `os.environ.get("GEMINI_MODEL",
+  "gemini-3.5-flash-lite")`, matching the pattern already used for
+  `GROQ_SIMULATOR_MODEL`, and do one live smoke call before generating the
+  labeled set so a retired model fails fast and cheap rather than mid-run.
+- `redteam/groq_model.py:31,46` — `DEFAULT_MODEL = "openai/gpt-oss-20b"`
+  (judge), `DEFAULT_SIMULATOR_MODEL` defaults to `"qwen/qwen3.8-27b"`
+  (already env-overridable via `GROQ_SIMULATOR_MODEL`). Both are the
+  faithfulness-check judge path the cascade escalates to, so a stale name
+  here would silently break every RAGAS-side comparison number. Names look
+  internally consistent with the file's own comments and with Aegis's
+  independent use of the same two models, but neither has been re-verified
+  against Groq's current model list as part of this pass. **Proposed fix:**
+  same live-smoke-call check before Step 2's generation run, no code change
+  needed since these are already the least-hardcoded names in the repo.
+- No other hardcoded model-name literals found in `agent/`, `drift/`,
+  `redteam/`, or `telemetry/`.
+
+**2. Errors/timeouts vs. pass/fail/faithful/unfaithful.** This is the
+strongest area of the codebase — no instance of the Aegis bug class found.
+- `drift/diff.py::check_numeric` — unparseable agent text →
+  `check_status="errored"`, `flagged=None` (not `False`).
+- `drift/diff.py::check_faithfulness` — any RAGAS exception is caught,
+  logged with `type(exc).__name__` and message, and returns
+  `check_status="errored"`, `flagged=None`. Never coerced to a score.
+- `drift/self_consistency.py::check_self_consistency` — two independent
+  try/excepts (sampling failure, judge failure), both → `errored`,
+  `flagged=None`.
+- `redteam/scoring.py::outcome()` — `tc.error` → `"errored"`, and
+  `CategoryASR.asr_pct` explicitly excludes `errored` from its denominator
+  (`scored = bypassed + defended`), covered by `scoring.py`'s own `demo()`
+  assertions.
+- `redteam/groq_model.py` — `RateLimitError` retried using the real
+  `retry-after` value; `BadRequestError` retried only for the confirmed-
+  transient empty-generation case (`_is_empty_generation`), everything else
+  (including a real model refusal) re-raises rather than being silently
+  scored. This is exactly the Aegis "refusal counted as a fixed outcome"
+  bug, and it's handled correctly here.
+- `agent/reference_agent.py` — Gemini 429s retried with a fixed backoff on
+  top of proactive pacing; all other errors propagate uncaught.
+- No fixes needed in this category.
+
+**3. Reasoning-model judges with too-small `max_tokens`.** Found one real
+issue.
+- `drift/diff.py::check_faithfulness` builds its RAGAS scorer via
+  `llm_factory(DEFAULT_MODEL, client=_judge_client())` with **no
+  `max_tokens` override**. `DEFAULT_MODEL` is `openai/gpt-oss-20b`, a
+  reasoning model. Reading `ragas/llms/base.py` directly: `llm_factory`
+  defaults to `max_tokens=1024`, and its own docstring warns this "may not
+  be sufficient" for reasoning models, recommending 4096+. Critically,
+  this call path does **not** go through `GroqModel`'s `_kwargs()`, so it
+  never sets `reasoning_format: "hidden"` the way `redteam/groq_model.py`
+  does for every other Groq call in this repo — gpt-oss-20b's reasoning
+  tokens are neither hidden nor exempted from the 1024-token budget here,
+  so on some fraction of calls the reasoning alone could exhaust the
+  budget before RAGAS's claim-decomposition JSON is emitted, producing a
+  truncated or empty completion. `check_faithfulness`'s own comment
+  (`drift/diff.py:111-115`) notes "2/14 faithfulness checks errored with
+  nothing to diagnose from" from a real sampler run — plausibly this bug,
+  though not confirmed; the fix should ship before Step 4's RAGAS-only
+  baseline is trusted, since a silently-truncated judge would inflate
+  RAGAS's own `errored` count for reasons unrelated to the cascade.
+  **Proposed fix:** pass `max_tokens=4096` (matching `GroqModel`'s own
+  `MAX_COMPLETION_TOKENS`) into `llm_factory(...)`, and check whether
+  ragas's OpenAI-compatible wrapper exposes an `extra_body`/
+  `reasoning_format` passthrough to hide reasoning tokens the same way
+  `GroqModel._kwargs()` does. Not applying this now per instruction, but
+  it should land before Step 4, not deferred to Step 5.
+- `drift/self_consistency.py`'s judge goes through `GroqModel.a_generate`,
+  which does set `max_tokens=4096` + `reasoning_format="hidden"`. No issue.
+
+**4. Caching / shared state across runs.**
+- No `lru_cache`, `functools.cache`, or module-level result cache found
+  anywhere in `agent/`, `drift/`, `redteam/`, or `telemetry/`.
+- `agent/reference_agent.py::load_ground_truth()` re-reads
+  `catalog.json`/`policies.json` from disk on every call by design —
+  `drift/staged_injection.py` depends on exactly this to prove the agent
+  can never itself go stale mid-session.
+- Shared state that *is* present, deliberately, and is not the same class
+  of bug: `agent/reference_agent.py`'s `_last_call_at`/`_RATE_LIMIT_LOCK`
+  (Gemini pacing) and `redteam/groq_model.py`'s `_REQUEST_LOCK` (Groq
+  pacing) serialize outbound calls to stay under free-tier RPM/TPM caps.
+  These make concurrent runs slower, not non-independent — each call still
+  hits the live model fresh. Unlike Aegis's `SemanticCache`, nothing here
+  reuses a prior verdict for a new input. No fix needed, and nothing
+  analogous needs to be avoided when building the cascade scripts, as long
+  as `laya_calibrate.py`/`laya_threshold_sweep.py` don't memoize a Laya
+  verdict keyed on input text across calibration/sweep/test rows (nothing
+  like that exists yet — noted only as a rule to follow when writing them).
+
+**Net:** category 2 (error handling) is already correct throughout; category
+4 (caching) has nothing to fix. Categories 1 and 3 have concrete, scoped
+fixes — the `max_tokens`/reasoning-format fix in particular should land
+before Step 4's RAGAS-only baseline number is reported, since it can
+change that baseline's own error rate independent of anything Laya does.
+
+## Laya cascade — plan for steps 2-5 (2026-09-26, plan only, not built)
+
+**Deviation flagged up front:** the original ask names
+`drift/staged_injection.py` as the tool to generate faithful/unfaithful
+claim variants. Reading it: it's the Step 19 git-history staleness demo
+(prod_003's price edited, committed, and re-verified against
+`drift_cause` classification) — it has no paraphrase or claim-corruption
+generation capability at all, and reusing it as written would not produce
+the ~210-row variant set. **Proposed instead:** a new module,
+`drift/faithfulness_variants.py`, that calls the existing Groq judge/
+simulator models (`redteam/groq_model.py`) to generate, per claim, a
+faithful paraphrase and four unfaithful transforms (stale number,
+fabricated exception, contradicted claim, unsupported addition) via a
+structured-output schema (mirroring `GroqModel.generate(..., schema=...)`,
+already used by `ConsistencyVerdict` in `drift/self_consistency.py`). This
+keeps every generation call within the repo's existing Groq client/retry/
+schema machinery rather than adding a new path.
+
+### Step 2 — labeled faithfulness set
+
+**Files:**
+- Create `drift/faithfulness_variants.py` — `generate_variants(claim: dict)
+  -> list[VariantRow]`, one call per claim per variant type (5 calls x 14
+  claims = 70 Groq calls to produce ~15 rows/claim via light rephrasing of
+  each transform, or fewer calls each returning multiple phrasings per
+  schema — exact call count to be finalized against the Groq TPD budget,
+  see Risks). Each `VariantRow` carries `row_id`, `claim_id`, `topic`,
+  `variant_type` (`faithful_paraphrase` | `stale_number` |
+  `fabricated_exception` | `contradicted_claim` | `unsupported_addition`),
+  `intended_label` (`faithful` | `unfaithful`), `question`
+  (`_faithfulness_question(topic)`, reused from `drift/sampler.py`),
+  `context_claims` (all claims under that topic, matching
+  `check_faithfulness`'s existing multi-claim-context requirement), and
+  `answer` (the generated variant text, standing in for what the agent
+  "said").
+- Create `data/faithfulness_variants.jsonl` — the generated rows.
+- Create `scripts/generate_faithfulness_review.py` — reads
+  `data/faithfulness_variants.jsonl` plus ~20 fresh live-agent rows
+  (`ask_async` over each of the 5 topic questions, 4x each, labeled
+  `unknown`, reusing `drift/sampler.py::_faithfulness_question` — not the
+  numeric or self-consistency questions, since scope is faithfulness
+  only), and writes `data/faithfulness_review.md`: one row per line —
+  `row_id | claim_id | topic | variant_type | intended_label | question |
+  claims | answer` — for manual review.
+- Create `data/faithfulness_splits.json` — `{claim_id: "calibration" |
+  "sweep" | "test"}` for all 14 claims, chosen to keep each of the 5
+  topics represented across splits where the topic's claim count allows
+  it (refund/shipping have 4 claims each, warranty/cancellation/discount
+  have 2 each) — target ~4/6/4 claim counts on calibration/sweep/test.
+  Exact assignment proposed in the review doc for confirmation alongside
+  the row labels, not decided silently.
+
+**Order:** write `faithfulness_variants.py` → generate the ~210 rows →
+sample ~20 live-agent rows → write the review doc + proposed split →
+**stop, wait for row-id flips/drops.**
+
+**Must-have:** the review doc and proposed split. **Stretch:** none — this
+step is entirely prerequisite to everything after it.
+
+**Risks:**
+- Groq free-tier daily token cap (TPD) is a known rolling-24h constraint
+  on this project (see `BUGS.md`); ~210 variant-generation calls plus ~20
+  live-agent-judge calls is small relative to the red-team harness's own
+  usage, but should be sequenced to avoid colliding with a same-day
+  red-team run.
+- Variant quality depends on the generator model actually producing a
+  usable stale-number/fabricated-exception/etc. rather than refusing or
+  drifting off-schema — `redteam/groq_model.py`'s existing retry/schema
+  handling covers the mechanical failure case, but a generated row that's
+  technically valid JSON yet doesn't match its intended label is a
+  labeling-quality risk the review doc is specifically for.
+
+### Step 3 — cascade design (plan only)
+
+**Files (not yet built):**
+- `redteam/laya_cascade.py` — `load_laya_agent()` (module-level singleton,
+  same pattern as Aegis's `laya_second_stage.py`), `laya_faithfulness_verdict
+  (question, context_claims, answer) -> LayaVerdict(p_faithful: float,
+  raw: dict)` using a `noul` question ("is every claim in the answer
+  supported by the given policy claims?"), and
+  `cascade_check_faithfulness(question, policy_id, claim, response,
+  context_claims, threshold) -> DriftCheckResult` — the actual gate:
+  decides alone when `max(p, 1-p) >= threshold`; otherwise calls the
+  existing `drift/diff.py::check_faithfulness` unchanged. If the
+  escalation call raises, the returned `DriftCheckResult` is
+  `check_status="errored"`, and the Laya-only verdict that would have been
+  given is logged alongside it (not silently dropped) — this is the
+  "Laya-only fallback" path the spec asks for.
+- `redteam/laya_calibrate.py` — fits temperature on the **calibration**
+  split only (from `data/faithfulness_splits.json`), class-balanced
+  (faithful vs. unfaithful), reports ECE per class to stdout and to
+  `data/laya_faithfulness_calibration.json`. Per the standing rule: if
+  benign/faithful-side ECE gets worse after fitting, the report says so
+  plainly rather than describing the result as "calibrated."
+- `redteam/laya_threshold_sweep.py` — loads the **sweep** split only.
+  Threshold rule, fixed before Step 4: the **lowest** `t` such that
+  cascade accuracy against the verified labels is no more than 5 points
+  below RAGAS-only accuracy on the same sweep rows. If no `t` in the grid
+  satisfies this, the script reports that explicitly and picks nothing —
+  no relaxation. Writes the full curve (`t`, cascade accuracy, RAGAS-only
+  accuracy, % handled by Laya alone) to
+  `data/laya_faithfulness_threshold_sweep.jsonl`, chosen `t` marked.
+
+**Order:** `laya_cascade.py`'s decide/escalate logic first (it's a pure
+function apart from the two model calls it wraps) → `laya_calibrate.py`
+against the calibration split → `laya_threshold_sweep.py` against the
+sweep split, consuming the fitted temperature.
+
+**Must-have:** the cascade function, the fixed threshold rule exactly as
+specified (including the no-relaxation behavior), the Laya-only fallback
+log on escalation error. **Stretch:** none identified — all four pieces
+are load-bearing for Step 4.
+
+**Risks:**
+- 14 claims total means the sweep split (~6 claims) may produce a thin
+  row count once split by claim — the threshold curve and its "5 points
+  below RAGAS-only" comparison will have correspondingly wide uncertainty;
+  worth reporting alongside the curve, not just the chosen `t`.
+- The Step 1 `max_tokens` fix (category 3 above) should land before this
+  step runs, since `laya_threshold_sweep.py`'s "RAGAS-only accuracy on
+  these rows" reference number is exactly the number that bug can distort.
+
+### Step 4 — evaluation (plan only)
+
+**Files (not yet built):**
+- `redteam/laya_eval.py` — loads the **test** split only, applies the
+  threshold chosen by `laya_threshold_sweep.py` (read from its output
+  file, never re-derived from test data), runs all three rows — RAGAS
+  only, Laya only, cascade at `t` — once, on the same test rows. Reports,
+  each with Wilson 95% CIs: accuracy vs. verified labels; precision/recall
+  for `unfaithful` (the catch-target); % of checks Laya handles alone; LLM
+  calls saved; median/p95 latency per check; error/fallback counts. Also
+  reports RAGAS's own accuracy vs. the verified labels as a standalone
+  number — the judge being wrong on this small hand-labeled set is a
+  finding in its own right, not just a baseline.
+
+**Order:** after Step 3's threshold is fixed and written to disk; this
+script is the only one whose numbers are allowed to appear in an eventual
+report, matching Aegis's own `laya_eval.py` convention.
+
+**Must-have:** all three rows, all listed metrics, both CI-bearing tables,
+run exactly once (no re-tuning after seeing test results).
+
+**Risks:**
+- Test split (~4 claims) will produce a small n; every rate here needs its
+  Wilson CI reported alongside it, not as a bare percentage, matching the
+  convention already adopted on the Aegis side.
+
+### Step 5 — live integration and dashboard (plan only)
+
+**Files (not yet built):**
+- Modify `drift/sampler.py` — wire `cascade_check_faithfulness` in behind
+  a config flag (`LAYA_CASCADE_ENABLED`, default off, read the same way
+  `GEMINI_MIN_INTERVAL_SECONDS` is read), replacing the direct
+  `check_faithfulness` call in `run_session`'s topic loop when enabled.
+  This runs inside `drift/sampler.py`'s own async loop, not inside
+  `agent/reference_agent.py`'s request path used by
+  `ask`/`ask_async`/`ask_with_tools` — confirmed by reading
+  `run_session`: it calls `ask_async(question)` to get the agent's answer
+  first, then separately calls the check function on that already-returned
+  answer. Laya only ever runs on an answer the agent already gave back, so
+  no user-facing latency is added by construction, not just by intent.
+- New table `laya_drift_scores` — SQL to review, **not applied**:
+  ```sql
+  CREATE TABLE laya_drift_scores (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      incident_id UUID NOT NULL REFERENCES drift_incidents (incident_id),
+      "timestamp" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      laya_p_faithful DOUBLE PRECISION NOT NULL,
+      threshold_used DOUBLE PRECISION NOT NULL,
+      decided_alone BOOLEAN NOT NULL,
+      escalated BOOLEAN NOT NULL,
+      escalation_status TEXT,          -- 'completed' | 'errored' | null when not escalated
+      escalation_error TEXT,           -- populated only when escalation_status = 'errored'
+      laya_only_verdict BOOLEAN,       -- what Laya alone would have said; always populated
+      cascade_verdict BOOLEAN,         -- null when escalation errored, matching drift_incidents.flagged
+      latency_ms DOUBLE PRECISION NOT NULL
+  );
+  CREATE INDEX idx_laya_drift_scores_incident ON laya_drift_scores (incident_id);
+  ALTER TABLE laya_drift_scores ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY "anon read only" ON laya_drift_scores FOR SELECT TO anon USING (true);
+  ```
+  One row per faithfulness check when the flag is on; `incident_id`
+  foreign-keys the existing `drift_incidents` row so the dashboard can join
+  without duplicating `question`/`expected`/`actual`.
+- Dashboard (`web/src/views/Drift.tsx`) — new panels, reusing the existing
+  `Panel`/`Stat`/`StatStrip` components already used elsewhere on this
+  page: the sweep's cascade tradeoff curve, the Step 4 test comparison
+  table, a "% handled by Laya" trend over live samples, and an
+  escalation-errors panel.
+
+**Order:** sampler wiring + table SQL review first (must-have) → dashboard
+panels last (spec explicitly orders it last).
+
+**Must-have:** the config-flagged sampler wiring, the table SQL reviewed
+and confirmed before any migration is applied. **Stretch:** the dashboard
+panels — functionally the feature works and is measurable via
+`laya_eval.py`/Supabase queries without them; they're the last-ordered
+item in the spec for exactly this reason.
+
+**Risks:**
+- No schema change ships without explicit confirmation, per standing
+  rule — the SQL above is a proposal, not a migration file, until
+  approved.
+- Wiring the flag into `run_session`'s topic loop changes what
+  `drift_incidents` rows look like when the flag is on (still one row per
+  claim, same shape, just faster to produce) — worth a smoke run with the
+  flag on before trusting it against a real live sample, same posture as
+  every other live-call path in this repo.
