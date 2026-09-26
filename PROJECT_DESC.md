@@ -701,64 +701,83 @@ latency for accuracy and call-count savings, not getting all three.
   RAGAS-only's faithful recall (0.75 @ 0.7, 0.694 tuned) trails its own
   unfaithful recall (0.979 both) on test too.
 
-### Step 5 — live integration and dashboard (plan only)
+### Step 5 — live integration and dashboard (built, 2026-09-27)
 
-**Files (not yet built):**
-- Modify `drift/sampler.py` — wire `cascade_check_faithfulness` in behind
-  a config flag (`LAYA_CASCADE_ENABLED`, default off, read the same way
-  `GEMINI_MIN_INTERVAL_SECONDS` is read), replacing the direct
-  `check_faithfulness` call in `run_session`'s topic loop when enabled.
-  This runs inside `drift/sampler.py`'s own async loop, not inside
-  `agent/reference_agent.py`'s request path used by
-  `ask`/`ask_async`/`ask_with_tools` — confirmed by reading
-  `run_session`: it calls `ask_async(question)` to get the agent's answer
-  first, then separately calls the check function on that already-returned
-  answer. Laya only ever runs on an answer the agent already gave back, so
-  no user-facing latency is added by construction, not just by intent.
-- New table `laya_drift_scores` — SQL to review, **not applied**:
+**Files:**
+- `drift/laya_cascade_check.py` (new) — `cascade_check_faithfulness(topic,
+  question, policy_id, claim, response, context_claims, threshold) ->
+  (DriftCheckResult, LayaDriftScoreLog)`. Laya decides alone above
+  `threshold`; otherwise escalates to the existing
+  `drift/diff.py::check_faithfulness` unchanged, timing the RAGAS call
+  itself since `check_faithfulness` doesn't expose latency. Includes a
+  pure decision-boundary self-check (`python -m drift.laya_cascade_check`,
+  no live calls).
+- `drift/sampler.py` (modified) — `LAYA_CASCADE_ENABLED` (default off,
+  parsed by a small `_parse_bool_env` helper) and
+  `LAYA_CASCADE_OPERATING_POINT` (`"accuracy"` default =
+  `redteam.laya_cascade.ACCURACY_POINT_T` = 0.80, `"cost"` selectable =
+  `COST_POINT_T` = 0.50 — the same two constants Step 3/4's scripts use,
+  not re-typed). `run_session`'s faithfulness loop branches to
+  `cascade_check_faithfulness` when enabled; `run_and_log` logs the paired
+  `LayaDriftScoreLog` via the new `log_laya_drift_score` right after
+  `log_drift_incident` returns the row's `incident_id`. A pure self-check
+  for the flag-parsing and operating-point mapping runs first in `main()`,
+  no env manipulation needed.
+- **Confirmed from the code, not just asserted:** `agent/` has zero
+  references to `laya_cascade`/`cascade_check_faithfulness`/
+  `LAYA_CASCADE` (checked directly). In `run_session`,
+  `cascade_check_faithfulness` is called strictly after `answer =
+  await ask_async(question)` already returned - the cascade only ever
+  runs on an answer the agent already gave back, inside the sampler's own
+  async loop. No user-facing latency is added by construction.
+- `telemetry/supabase_client.py` (modified) — `log_drift_incident` now
+  returns the inserted row's `incident_id` (backward compatible; its two
+  existing callers already ignored the return value). New
+  `log_laya_drift_score(client, incident_id, log)` writes the sibling row.
+- `scripts/migrate_004_laya_drift_scores.sql` (new, **not applied**):
   ```sql
   CREATE TABLE laya_drift_scores (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       incident_id UUID NOT NULL REFERENCES drift_incidents (incident_id),
       "timestamp" TIMESTAMPTZ NOT NULL DEFAULT now(),
-      laya_p_faithful DOUBLE PRECISION NOT NULL,
-      threshold_used DOUBLE PRECISION NOT NULL,
-      decided_alone BOOLEAN NOT NULL,
-      escalated BOOLEAN NOT NULL,
-      escalation_status TEXT,          -- 'completed' | 'errored' | null when not escalated
-      escalation_error TEXT,           -- populated only when escalation_status = 'errored'
-      laya_only_verdict BOOLEAN,       -- what Laya alone would have said; always populated
-      cascade_verdict BOOLEAN,         -- null when escalation errored, matching drift_incidents.flagged
-      latency_ms DOUBLE PRECISION NOT NULL
+      topic TEXT NOT NULL,
+      p_faithful DOUBLE PRECISION NOT NULL,
+      decided_by TEXT NOT NULL CHECK (decided_by IN ('laya', 'ragas')),
+      final_verdict TEXT CHECK (final_verdict IN ('faithful', 'unfaithful')),
+      laya_latency_ms DOUBLE PRECISION NOT NULL,
+      ragas_latency_ms DOUBLE PRECISION,
+      errored BOOLEAN NOT NULL DEFAULT false
   );
   CREATE INDEX idx_laya_drift_scores_incident ON laya_drift_scores (incident_id);
+  CREATE INDEX idx_laya_drift_scores_decided_by ON laya_drift_scores (decided_by);
   ALTER TABLE laya_drift_scores ENABLE ROW LEVEL SECURITY;
   CREATE POLICY "anon read only" ON laya_drift_scores FOR SELECT TO anon USING (true);
   ```
-  One row per faithfulness check when the flag is on; `incident_id`
-  foreign-keys the existing `drift_incidents` row so the dashboard can join
-  without duplicating `question`/`expected`/`actual`.
-- Dashboard (`web/src/views/Drift.tsx`) — new panels, reusing the existing
-  `Panel`/`Stat`/`StatStrip` components already used elsewhere on this
-  page: the sweep's cascade tradeoff curve, the Step 4 test comparison
-  table, a "% handled by Laya" trend over live samples, and an
-  escalation-errors panel.
+  Simpler than the earlier plan-only sketch above (dropped
+  `threshold_used`/`escalated`/`escalation_status`/`decided_alone`/
+  `laya_only_verdict` - `decided_by` + `final_verdict` + `errored` already
+  cover the same information the columns were tracking, per the exact
+  column list confirmed before building this).
+- Dashboard (`web/src/views/Drift.tsx`, `web/src/lib/layaEval.ts` new,
+  `web/src/lib/data.ts`/`types.ts` modified) — a "Laya cascade" panel: the
+  sweep threshold curve (recharts `LineChart` + `ReferenceDot` marking
+  both operating points) and the Step 4 test comparison table are
+  **static data** (`layaEval.ts`, from the one-time offline eval, not live
+  Supabase rows — regenerate by hand if the eval reruns); a live
+  "sampler activity" section fetches `laya_drift_scores` via
+  `fetchLayaDriftScores()`, which returns `[]` on any error (including the
+  table not existing yet) so this one panel shows "no data yet" instead of
+  breaking the whole dashboard before the migration is applied. `tsc -b`
+  and `oxlint` both pass clean.
 
-**Order:** sampler wiring + table SQL review first (must-have) → dashboard
-panels last (spec explicitly orders it last).
+**Environment note:** running the sampler with
+`LAYA_CASCADE_ENABLED=true` requires an environment with both the `laya`
+package (laya-bench env) and `ragas`/`deepeval`/`groq` (argus env) - the
+two are currently separate conda environments on this machine (see Step
+3's scoring scripts, which run in different envs for the same reason).
+Not resolved here; noted as an operational gap before this flag is turned
+on for a real run.
 
-**Must-have:** the config-flagged sampler wiring, the table SQL reviewed
-and confirmed before any migration is applied. **Stretch:** the dashboard
-panels — functionally the feature works and is measurable via
-`laya_eval.py`/Supabase queries without them; they're the last-ordered
-item in the spec for exactly this reason.
-
-**Risks:**
-- No schema change ships without explicit confirmation, per standing
-  rule — the SQL above is a proposal, not a migration file, until
-  approved.
-- Wiring the flag into `run_session`'s topic loop changes what
-  `drift_incidents` rows look like when the flag is on (still one row per
-  claim, same shape, just faster to produce) — worth a smoke run with the
-  flag on before trusting it against a real live sample, same posture as
-  every other live-call path in this repo.
+**Not yet applied:** the migration above needs manual confirmation before
+running in the Supabase SQL editor, per the standing no-schema-changes-
+without-confirmation rule.
