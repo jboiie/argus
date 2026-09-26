@@ -30,6 +30,12 @@ TEMPERATURE_PATH = Path(__file__).resolve().parent.parent / "data" / "laya_faith
 def load_temperature(path: Path = TEMPERATURE_PATH) -> float:
     return json.loads(path.read_text(encoding="utf-8"))["temperature"]
 
+
+# Identifies which Laya checkpoint produced a score - logged alongside
+# every live cascade check (laya_drift_scores.laya_checkpoint) so a future
+# checkpoint change is visible in the data, not just in this constant.
+LAYA_CHECKPOINT = "convaiinnovations/laya:typed-decisions"
+
 FAITHFULNESS_QUESTION = {
     "faithfulness": {
         "type": "noul",
@@ -51,7 +57,8 @@ def load_laya_agent():
     global _agent
     if _agent is None:
         import laya
-        _agent = laya.load("convaiinnovations/laya", subfolder="typed-decisions", device="cpu")
+        model_id, _, subfolder = LAYA_CHECKPOINT.partition(":")
+        _agent = laya.load(model_id, subfolder=subfolder, device="cpu")
     return _agent
 
 
