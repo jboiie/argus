@@ -635,10 +635,10 @@ calls** (`redteam/laya_test_analysis.py`):
 | Laya-only vs RAGAS@0.7 | 10 | 10 | 1.0000 |
 
 None of the three pairwise differences reach p<0.05 on this n=84 test
-split - the cascade-vs-RAGAS gap (5 vs 0 discordant, the closest to
-significant) would need a larger sample to confirm as more than noise.
-**Read the balanced-accuracy table above as suggestive, not statistically
-confirmed, given this sample size.**
+split. **Cascade@0.80 vs RAGAS@0.7: 5-0 on discordant rows, p=0.0625, the
+minimum possible with 5 discordant pairs; consistent direction, not
+significant at n=84.** Read the balanced-accuracy table above as
+suggestive, not statistically confirmed, given this sample size.
 
 *Per-claim balanced accuracy (4 test claims):*
 
@@ -770,13 +770,36 @@ latency for accuracy and call-count savings, not getting all three.
   breaking the whole dashboard before the migration is applied. `tsc -b`
   and `oxlint` both pass clean.
 
-**Environment note:** running the sampler with
-`LAYA_CASCADE_ENABLED=true` requires an environment with both the `laya`
-package (laya-bench env) and `ragas`/`deepeval`/`groq` (argus env) - the
-two are currently separate conda environments on this machine (see Step
-3's scoring scripts, which run in different envs for the same reason).
-Not resolved here; noted as an operational gap before this flag is turned
-on for a real run.
+**Environment note, resolved (2026-09-27):** running the sampler with
+`LAYA_CASCADE_ENABLED=true` needs both the `laya` package and
+`ragas`/`deepeval`/`groq` in one environment - `laya-bench` and `argus`
+are currently separate conda envs on this machine (Step 3's scoring
+scripts run in different envs for exactly this reason). Tested by cloning
+`argus` (`conda create --name argus-laya-clone --clone argus`, original
+envs untouched) and `pip install laya` into the clone:
+- **No new conflicts.** `pip check` on the clone reports the same single
+  pre-existing mismatch as unmodified `argus` (`deepeval 4.1.10` wants
+  `click<8.4.0` but the env has `click 8.4.2`) - present before laya was
+  ever installed, not introduced by it. `torch==2.14.0`,
+  `transformers==5.17.0`, `tokenizers==0.23.2`, `safetensors==0.8.0` all
+  installed clean; `numpy==2.4.6` was already identical in both envs, no
+  downgrade of anything. (One version note: pip resolved `laya==0.3.20`,
+  newer than `laya-bench`'s pinned `0.3.8` - untested whether the
+  typed-decisions checkpoint's API is unchanged between those two, though
+  the run below suggests it is.)
+- **Existing tests pass in the clone:** `scripts/test_self_check_no_network.py`
+  (both `--self-check` paths) and `drift/laya_cascade_check.py`'s own
+  decision-boundary self-check, unchanged.
+- **One real end-to-end cascade check, run in the clone:** a deliberately
+  unfaithful answer at `threshold=0.999` (forcing escalation) produced
+  `p_faithful=0.093` from Laya, escalated to a real RAGAS/Groq call
+  (`ragas_latency_ms=13109`, a genuine network round trip), RAGAS scored
+  `0.0`, and the cascade's `final_verdict='unfaithful'` matched -
+  confirming a single merged environment can run both halves of the
+  cascade correctly, not just import both packages without crashing.
+- **`argus-laya-clone` is left in place**, not merged into `argus` or
+  `laya-bench` - that's a decision for the user, not made unilaterally
+  here.
 
 **Not yet applied:** the migration above needs manual confirmation before
 running in the Supabase SQL editor, per the standing no-schema-changes-
