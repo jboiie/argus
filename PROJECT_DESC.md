@@ -426,6 +426,65 @@ are load-bearing for Step 4.
   accuracy on these rows" reference number is exactly the number that bug
   can distort. **Done** (2026-09-26, see commit `e1d73e8`).
 
+**Step 3 results (2026-09-27), method: score once, save, simulate from
+saved scores** - `redteam/laya_score_faithfulness.py` scored all 326 rows
+(calibration + sweep + test + live) with Laya once; `redteam/ragas_score_faithfulness.py`
+scored the 238 sweep/test/live rows with RAGAS once (calibration is
+Laya-only, no RAGAS baseline needed there). Every number below comes from
+replaying those saved per-row scores/latencies, not from re-running
+either model - the cascade "decides" by reading a saved Laya confidence
+and, on escalation, a saved RAGAS result, with latency summed from both
+saved numbers on escalated rows.
+
+- **Laya latency** (326 rows, single-question forward pass, CPU fp32):
+  p50=661ms, p95=1414ms. Notably higher than Phase 0's ~159ms/271ms
+  estimate - Phase 0's number amortized a 5-question `guard_questions()`
+  batch call; a single-question call here still pays the same fixed
+  per-forward-pass overhead, so it doesn't scale down with fewer
+  questions. Real measured number now supersedes the Phase 0 estimate.
+- **RAGAS latency** (238 rows): p50=1655ms, p95=11420ms, 0 errored -
+  consistent with Phase 0's own RAGAS measurement.
+- **Calibration** (88 calibration-split rows, 30 faithful/58 unfaithful,
+  class-balanced NLL fit): **T=0.72**, but ECE got WORSE after fitting
+  for BOTH classes (combined 0.2057→0.2344, faithful 0.1404→0.1745,
+  unfaithful 0.2394→0.2654). Per the standing rule, Laya's confidence is
+  NOT described as calibrated anywhere in this cascade - the fitted T is
+  still used for the threshold-sweep's decision rule (ranking, not
+  calibration, is what the rule relies on), but no downstream number
+  claims calibrated probabilities.
+- **Sweep-split baselines (134 rows)**, balanced accuracy with its
+  approximate CI (mean of the two per-class recall Wilson CIs) and
+  per-class precision/recall:
+
+  | Baseline | Balanced accuracy | faithful P/R | unfaithful P/R |
+  |---|---|---|---|
+  | A: RAGAS-only @ 0.7 (existing) | 0.8098 [0.711, 0.876] | 0.932 / 0.661 | 0.767 / 0.958 |
+  | B: RAGAS-only, tuned on sweep (t=1.0) | 0.8168 [0.721, 0.879] | 0.953 / 0.661 | 0.769 / 0.972 |
+  | C: Laya-only @ P(faithful)≥0.5 | 0.7744 [0.674, 0.843] | 0.670 / 0.952 | 0.935 / 0.597 |
+
+  RAGAS's own tuned threshold (t=1.0) is a degenerate result worth
+  flagging: RAGAS's sweep-split scores separate the two classes cleanly
+  enough that requiring a perfect 1.0 score for "faithful" still beats
+  every lower threshold on balanced accuracy - not necessarily true on
+  test. 0 RAGAS errors on sweep.
+- **Threshold sweep** (51 thresholds, t=0.50-1.00, rule: lowest t with
+  cascade balanced accuracy ≥ tuned-RAGAS − 0.05 = 0.7668): **chosen
+  t=0.50.** This is a real but somewhat degenerate result: `max(p, 1-p)
+  ≥ 0.5` is true for every row by construction, so t=0.50 makes the
+  cascade decide alone on 100% of rows (134/134 calls saved) - it
+  collapses to exactly Baseline C (balanced accuracy 0.7744), which
+  already clears the bar without ever escalating. The full curve shows
+  the cascade CAN beat both RAGAS baselines at higher t (peak 0.8732 at
+  t=0.80, handling 41.8% alone), but the rule optimizes for the lowest
+  qualifying t, not the peak - it picks the cheapest option that clears
+  the bar, not the best one. 0 escalation errors throughout the curve
+  (RAGAS never errored on sweep). Full curve: `data/laya_faithfulness_threshold_sweep.jsonl`.
+- **Not yet decided:** whether "lowest t" is really the right rule to
+  carry into Step 4's test-split evaluation given this degenerate
+  outcome, since it discards the cascade's actual accuracy advantage
+  observed at higher t - flagged here for a decision before Step 4, not
+  changed unilaterally.
+
 ### Step 4 — evaluation (plan only)
 
 **Files (not yet built):**
