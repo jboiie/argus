@@ -590,6 +590,39 @@ run exactly once (no re-tuning after seeing test results).
   Wilson CI reported alongside it, not as a bare percentage, matching the
   convention already adopted on the Aegis side.
 
+**Step 4 results (2026-09-27), run once, both operating points fixed
+before touching test:** 84 test rows, **4 claims**
+(`policy_refund_processing_time`, `policy_shipping_international`,
+`policy_warranty_exclusions`, `policy_cancellation_shipped`), 0 RAGAS
+errors, RAGAS-tuned threshold recomputed from sweep's saved scores only
+(t=1.0, unchanged from Step 3 - never re-derived from test).
+
+| Method | Balanced accuracy | faithful P/R | unfaithful P/R |
+|---|---|---|---|
+| RAGAS-only @ 0.7 | 0.8646 [0.740, 0.929] | 0.964/0.750 | 0.839/0.979 |
+| RAGAS-only, sweep-tuned (t=1.0) | 0.8368 [0.711, 0.908] | 0.962/0.694 | 0.810/0.979 |
+| Laya-only / cost point (t=0.50) | 0.8889 [0.761, 0.949] | 0.810/0.944 | 0.952/0.833 |
+| **Cascade accuracy point (t=0.80)** | **0.9340 [0.819, 0.976]** | 0.970/0.889 | 0.922/0.979 |
+
+- **Cascade accuracy point:** handled 38.1% of test rows alone (32/84
+  calls saved), latency p50=1845ms / p95=11802ms, 0 escalation errors.
+- **Cost point:** handles 100% alone by construction (84/84 calls saved),
+  latency p50=537ms / p95=1408ms, 0 escalation errors.
+- **Both operating points beat both RAGAS baselines on test**, and the
+  accuracy point's 0.934 exceeds even the sweep-observed peak (0.8732) -
+  test landed HIGHER than sweep here, the opposite direction from the
+  "some optimism expected" caveat disclosed before this run. That caveat
+  was about the selection process (best-of-51-on-134-rows), not a
+  guarantee of direction - on this particular test split the selected
+  threshold generalized better than sweep, not worse. Small-n sampling
+  noise cuts both ways; 4 claims is not enough to call this confirmed.
+- **Live rows (n=20, all intended faithful):** 0/20 flagged unfaithful by
+  every one of the four methods - RAGAS, Laya, and the cascade all agree
+  perfectly on the near-verbatim live-agent recitations, with no false
+  positives from any method on this group.
+
+Full breakdown: `data/laya_faithfulness_eval.json`.
+
 ### Step 5 — live integration and dashboard (plan only)
 
 **Files (not yet built):**
