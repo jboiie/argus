@@ -90,6 +90,23 @@ export interface CategoryASR {
   asr_pct: number;
 }
 
+/** scripts/migrate_004_laya_drift_scores.sql - not yet applied, so this
+ *  table may not exist in Supabase yet. See web/src/lib/data.ts's
+ *  fetchLayaDriftScores(), which returns [] rather than throwing when
+ *  the query fails for that reason. */
+export interface LayaDriftScore {
+  id: string;
+  incident_id: string;
+  timestamp: string;
+  topic: string;
+  p_faithful: number;
+  decided_by: "laya" | "ragas";
+  final_verdict: "faithful" | "unfaithful" | null;
+  laya_latency_ms: number;
+  ragas_latency_ms: number | null;
+  errored: boolean;
+}
+
 export interface FalsePositiveCost {
   total_flagged: number;
   reviewed: number;

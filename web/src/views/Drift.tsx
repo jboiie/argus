@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -6,13 +6,15 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceDot,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { computeFalsePositiveCost, driftCauseBreakdown, driftIncidentsOverTime } from "../lib/data";
-import type { DriftIncident, Run } from "../lib/types";
+import { computeFalsePositiveCost, driftCauseBreakdown, driftIncidentsOverTime, fetchLayaDriftScores } from "../lib/data";
+import { OPERATING_POINTS, SWEEP_CURVE, TEST_CLAIMS, TEST_COMPARISON } from "../lib/layaEval";
+import type { DriftIncident, LayaDriftScore, Run } from "../lib/types";
 import {
   Empty,
   Note,
@@ -46,6 +48,15 @@ const MIN_POINTS_FOR_LINE = 4;
 export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: Run[] }) {
   const [runId, setRunId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [layaScores, setLayaScores] = useState<LayaDriftScore[]>([]);
+
+  // Own effect, own state - laya_drift_scores may not exist yet
+  // (scripts/migrate_004_laya_drift_scores.sql not applied), and
+  // fetchLayaDriftScores() already degrades to [] rather than throwing,
+  // so this panel alone shows "no data yet" instead of breaking the page.
+  useEffect(() => {
+    fetchLayaDriftScores().then(setLayaScores);
+  }, []);
 
   const scoped = useMemo(
     () => (runId ? incidents.filter((i) => i.run_id === runId) : incidents),
@@ -211,6 +222,103 @@ export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: R
           is no ground truth on what should have been flagged but wasn't. It is the stated reason
           both thresholds lean toward over-flagging.
         </p>
+      </Panel>
+
+      <Panel
+        title="Laya cascade"
+        sub="Step 3/4 offline eval (PROJECT_DESC.md's 'Laya cascade' section) - fixed numbers from a one-time run over saved Laya/RAGAS scores, plus live sampler activity below once LAYA_CASCADE_ENABLED is on and the migration is applied."
+      >
+        <div className="grid gap-5 xl:grid-cols-2">
+          <div>
+            <h4 className="mb-2 text-2xs font-semibold tracking-[0.08em] text-ink-3 uppercase">
+              Sweep-split threshold curve (134 rows)
+            </h4>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={SWEEP_CURVE} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid stroke="#262f3d" strokeDasharray="2 4" vertical={false} />
+                  <XAxis dataKey="t" tick={AXIS} tickLine={false} axisLine={{ stroke: "#262f3d" }} />
+                  <YAxis tick={AXIS} tickLine={false} axisLine={false} domain={[0.7, 0.95]} />
+                  <Tooltip contentStyle={TOOLTIP} />
+                  <Line type="monotone" dataKey="balancedAccuracy" name="balanced accuracy" stroke="#c9a227" strokeWidth={2} dot={false} />
+                  <ReferenceDot
+                    x={OPERATING_POINTS.cost.t} y={SWEEP_CURVE[0].balancedAccuracy}
+                    r={5} fill="#5fb0e0" stroke="none" label={{ value: "cost", position: "top", fill: "#5fb0e0", fontSize: 11 }}
+                  />
+                  <ReferenceDot
+                    x={OPERATING_POINTS.accuracy.t}
+                    y={SWEEP_CURVE.find((p) => p.t === OPERATING_POINTS.accuracy.t)?.balancedAccuracy}
+                    r={5} fill="#c8322e" stroke="none" label={{ value: "accuracy", position: "top", fill: "#c8322e", fontSize: 11 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="mt-2 text-2xs text-ink-3">
+              Cost point (t=0.50, blue) decides every row alone. Accuracy point (t=0.80, red) is the
+              sweep curve's balanced-accuracy peak, chosen after seeing this curve.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="mb-2 text-2xs font-semibold tracking-[0.08em] text-ink-3 uppercase">
+              Test-split comparison ({TEST_CLAIMS} claims, 84 rows, run once)
+            </h4>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <Th>Method</Th>
+                  <Th align="right">Bal. acc.</Th>
+                  <Th align="right">Faithful P/R</Th>
+                  <Th align="right">Unfaithful P/R</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {TEST_COMPARISON.map((row) => (
+                  <tr key={row.method} className="transition-colors duration-150 hover:bg-chrome-2">
+                    <Td>{row.method}</Td>
+                    <Td align="right" mono>{row.balancedAccuracy.toFixed(4)}</Td>
+                    <Td align="right" mono>{row.faithfulPrecision.toFixed(2)}/{row.faithfulRecall.toFixed(2)}</Td>
+                    <Td align="right" mono>{row.unfaithfulPrecision.toFixed(2)}/{row.unfaithfulRecall.toFixed(2)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-2xs leading-relaxed text-ink-3">
+              None of the pairwise differences reach p&lt;0.05 by McNemar's exact test on this n=84 -
+              read as suggestive, not statistically confirmed.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 border-t border-rule pt-4">
+          <h4 className="mb-2 text-2xs font-semibold tracking-[0.08em] text-ink-3 uppercase">
+            Live sampler activity
+          </h4>
+          {layaScores.length === 0 ? (
+            <Empty>
+              No laya_drift_scores rows yet — apply scripts/migrate_004_laya_drift_scores.sql and run
+              drift/sampler.py with LAYA_CASCADE_ENABLED=true.
+            </Empty>
+          ) : (
+            <StatStrip>
+              <Stat label="Checks logged" value={layaScores.length} />
+              <Stat
+                label="Decided by Laya"
+                value={`${((layaScores.filter((s) => s.decided_by === "laya").length / layaScores.length) * 100).toFixed(0)}%`}
+                tone="brand"
+              />
+              <Stat
+                label="Escalated to RAGAS"
+                value={layaScores.filter((s) => s.decided_by === "ragas").length}
+              />
+              <Stat
+                label="Escalation errors"
+                value={layaScores.filter((s) => s.errored).length}
+                tone={layaScores.some((s) => s.errored) ? "errored" : "default"}
+              />
+            </StatStrip>
+          )}
+        </div>
       </Panel>
 
       <Panel
