@@ -97,7 +97,7 @@ export interface CategoryASR {
 export interface LayaDriftScore {
   id: string;
   incident_id: string;
-  timestamp: string;
+  created_at: string;
   topic: string;
   p_faithful: number;
   decided_by: "laya" | "ragas";
@@ -105,6 +105,9 @@ export interface LayaDriftScore {
   laya_latency_ms: number;
   ragas_latency_ms: number | null;
   errored: boolean;
+  threshold: number;
+  operating_point: "accuracy" | "cost";
+  laya_checkpoint: string;
 }
 
 export interface FalsePositiveCost {
