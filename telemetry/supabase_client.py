@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from supabase import Client, create_client
 
 from drift.classify import classify_drift_cause, classify_severity
+from drift.laya_cascade_check import LayaDriftScoreLog
 from redteam.scoring import outcome
 
 load_dotenv()
@@ -55,10 +56,13 @@ def log_attack_event(client: Client, tc, run_id: str, session_id: str, mandate_i
     client.table("attack_events").insert(row).execute()
 
 
-def log_drift_incident(client: Client, result, run_id: str, session_id: str) -> None:
+def log_drift_incident(client: Client, result, run_id: str, session_id: str) -> str:
     """result is a drift.diff.DriftCheckResult. drift_cause/severity are
     computed here (not on DriftCheckResult itself) via drift.classify -
-    both are null when the check wasn't flagged, nothing to classify."""
+    both are null when the check wasn't flagged, nothing to classify.
+    Returns the inserted row's incident_id (DB-generated), so a caller
+    logging a Laya cascade score alongside it has a real FK to attach to -
+    see log_laya_drift_score."""
     row = {
         "run_id": run_id,
         "check_type": result.check_type,
@@ -75,7 +79,25 @@ def log_drift_incident(client: Client, result, run_id: str, session_id: str) -> 
         "severity": classify_severity(result.check_type, result.ground_truth_type, result.ground_truth_ref) if result.flagged else None,
         "session_id": session_id,
     }
-    client.table("drift_incidents").insert(row).execute()
+    inserted = client.table("drift_incidents").insert(row).execute()
+    return inserted.data[0]["incident_id"]
+
+
+def log_laya_drift_score(client: Client, incident_id: str, log: LayaDriftScoreLog) -> None:
+    """One row per faithfulness check when the Laya cascade is enabled
+    (drift/sampler.py, LAYA_CASCADE_ENABLED) - schema:
+    scripts/migrate_004_laya_drift_scores.sql (not yet applied)."""
+    row = {
+        "incident_id": incident_id,
+        "topic": log.topic,
+        "p_faithful": log.p_faithful,
+        "decided_by": log.decided_by,
+        "final_verdict": log.final_verdict,
+        "laya_latency_ms": log.laya_latency_ms,
+        "ragas_latency_ms": log.ragas_latency_ms,
+        "errored": log.errored,
+    }
+    client.table("laya_drift_scores").insert(row).execute()
 
 
 def log_session_turn(client: Client, session_id: str, run_id: str, session_type: str, turn_index: int, role: str, content: str, mandate_id: str | None = None) -> None:
