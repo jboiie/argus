@@ -277,6 +277,55 @@ step is entirely prerequisite to everything after it.
   technically valid JSON yet doesn't match its intended label is a
   labeling-quality risk the review doc is specifically for.
 
+**Step 2 results (2026-09-26, built in `drift/faithfulness_variants.py`):**
+- Single file, not a separate `scripts/generate_faithfulness_review.py` -
+  folded the review-doc writer into the same module (fewer files, same
+  behavior).
+- **Rebalanced after the first pass:** the initial run (1 faithful type x
+  3 styles vs. 4 unfaithful types x 3 styles) produced 41 faithful vs. 166
+  unfaithful rows - an accuracy-rewards-always-guessing-unfaithful set.
+  Fixed by adding `FAITHFUL_PARAPHRASE_INSTRUCTIONS`, 4 differently-worded
+  full-fidelity paraphrase instructions (same count as the 4 unfaithful
+  types), so faithful and unfaithful land at 12 rows/claim each before
+  dedup. Final counts: 162 faithful (`faithful_paraphrase`) vs. 164
+  unfaithful (40 `stale_number` + 42 `fabricated_exception` + 40
+  `contradicted_claim` + 42 `unsupported_addition`), 326 rows total after
+  dedup (of 336 generated, 10 near-duplicates removed) + 20 live-agent
+  rows labeled `unknown`.
+- **Automated consistency checks** (advisory only, nothing auto-dropped):
+  `stale_number` and the numeric half of `faithful_paraphrase` are
+  deterministic (regex number extraction - does the answer's number set
+  differ from / stay a subset of the claim's); `contradicted_claim`,
+  `fabricated_exception`, `unsupported_addition`, and the non-numeric half
+  of `faithful_paraphrase` go through a separate short LLM prompt
+  (`check_substance`, its own schema and prompts, not RAGAS and not the
+  variant generator's own prompt) asking only "did the intended
+  transformation actually happen". **Disclosed deviation:** the first
+  version of the `faithful_paraphrase` check used literal word-overlap
+  (no number or content word outside the claims) and flagged 136/162
+  (84%) of rows - almost all harmless synonyms ("send back" for "return",
+  "arrival" for "delivery"). Literal token matching can't distinguish a
+  synonym from a real unsupported addition, so that half moved to the LLM
+  check too (numbers stayed deterministic, since literal number matching
+  is reliable). Final run: 50/326 rows flagged (15%) - 39
+  `faithful_paraphrase`, 5 `stale_number`, 5 `contradicted_claim`, 1
+  `unsupported_addition`, 0 `fabricated_exception`.
+- A judge-model hiccup surfaced during this: `openai/gpt-oss-20b`
+  occasionally emits its full chain-of-thought as plain text past
+  `reasoning_format="hidden"`, which Groq's strict-schema mode then
+  rejects with `output_parse_failed` (a different error code than the
+  `json_validate_failed` case `redteam/groq_model.py`'s own retry logic
+  already handles). Uncaught, this crashed the whole automated-check
+  batch on one bad row. Fixed in `run_automated_checks`: a `check_substance`
+  exception is caught, logged, and the row is flagged with the error as
+  its reason rather than crashing the run - same "never let a check
+  failure discard the rest of the batch" posture as `drift/sampler.py`'s
+  own per-row logging try/except.
+- `data/faithfulness_review.md` structure: a "Flagged by automated
+  checks" section first (row + reason), then the remaining rows grouped
+  by `variant_type`, then the 20 live-agent rows last - a flagged row
+  appears once, in the flagged section only.
+
 ### Step 3 — cascade design (plan only)
 
 **Files (not yet built):**
@@ -300,12 +349,18 @@ step is entirely prerequisite to everything after it.
   benign/faithful-side ECE gets worse after fitting, the report says so
   plainly rather than describing the result as "calibrated."
 - `redteam/laya_threshold_sweep.py` — loads the **sweep** split only.
-  Threshold rule, fixed before Step 4: the **lowest** `t` such that
-  cascade accuracy against the verified labels is no more than 5 points
-  below RAGAS-only accuracy on the same sweep rows. If no `t` in the grid
-  satisfies this, the script reports that explicitly and picks nothing —
-  no relaxation. Writes the full curve (`t`, cascade accuracy, RAGAS-only
-  accuracy, % handled by Laya alone) to
+  Threshold rule, fixed before Step 4: the **lowest** `t` such that cascade
+  **balanced accuracy** (mean of faithful recall and unfaithful recall)
+  against the verified labels is no more than 5 points below RAGAS-only
+  balanced accuracy on the same sweep rows. Changed from plain accuracy
+  (2026-09-26): the faithfulness set is a real classification problem
+  with two classes, and plain accuracy on an unbalanced or near-balanced
+  set can reward a rule that leans toward one label — balanced accuracy
+  weights both classes' recall equally regardless of how many rows of
+  each end up in a given split. If no `t` in the grid satisfies this, the
+  script reports that explicitly and picks nothing — no relaxation.
+  Writes the full curve (`t`, cascade balanced accuracy, RAGAS-only
+  balanced accuracy, % handled by Laya alone) to
   `data/laya_faithfulness_threshold_sweep.jsonl`, chosen `t` marked.
 
 **Order:** `laya_cascade.py`'s decide/escalate logic first (it's a pure
@@ -324,8 +379,9 @@ are load-bearing for Step 4.
   below RAGAS-only" comparison will have correspondingly wide uncertainty;
   worth reporting alongside the curve, not just the chosen `t`.
 - The Step 1 `max_tokens` fix (category 3 above) should land before this
-  step runs, since `laya_threshold_sweep.py`'s "RAGAS-only accuracy on
-  these rows" reference number is exactly the number that bug can distort.
+  step runs, since `laya_threshold_sweep.py`'s "RAGAS-only balanced
+  accuracy on these rows" reference number is exactly the number that bug
+  can distort. **Done** (2026-09-26, see commit `e1d73e8`).
 
 ### Step 4 — evaluation (plan only)
 
@@ -334,12 +390,14 @@ are load-bearing for Step 4.
   threshold chosen by `laya_threshold_sweep.py` (read from its output
   file, never re-derived from test data), runs all three rows — RAGAS
   only, Laya only, cascade at `t` — once, on the same test rows. Reports,
-  each with Wilson 95% CIs: accuracy vs. verified labels; precision/recall
-  for `unfaithful` (the catch-target); % of checks Laya handles alone; LLM
-  calls saved; median/p95 latency per check; error/fallback counts. Also
-  reports RAGAS's own accuracy vs. the verified labels as a standalone
-  number — the judge being wrong on this small hand-labeled set is a
-  finding in its own right, not just a baseline.
+  each with Wilson 95% CIs: **balanced accuracy** (not plain accuracy, see
+  Step 3) vs. verified labels; per-class precision/recall (faithful and
+  unfaithful, not just the unfaithful catch-target); % of checks Laya
+  handles alone; LLM calls saved; median/p95 latency per check;
+  error/fallback counts. Also reports RAGAS's own balanced accuracy vs.
+  the verified labels as a standalone number — the judge being wrong on
+  this small hand-labeled set is a finding in its own right, not just a
+  baseline.
 
 **Order:** after Step 3's threshold is fixed and written to disk; this
 script is the only one whose numbers are allowed to appear in an eventual
