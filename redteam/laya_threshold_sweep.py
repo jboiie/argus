@@ -41,7 +41,7 @@ def load_split_rows(split: str) -> list[dict]:
     for row_id, laya_row in laya_rows.items():
         ragas_row = ragas_rows[row_id]
         joined.append({
-            "row_id": row_id, "intended_label": laya_row["intended_label"],
+            "row_id": row_id, "claim_id": laya_row["claim_id"], "intended_label": laya_row["intended_label"],
             "p_faithful_raw": laya_row["p_faithful_raw"], "laya_latency_ms": laya_row["latency_ms"],
             "ragas_score": ragas_row["score"], "ragas_status": ragas_row["check_status"],
             "ragas_latency_ms": ragas_row["latency_ms"],
