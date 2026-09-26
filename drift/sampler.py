@@ -23,13 +23,18 @@ from drift.laya_cascade_check import LayaDriftScoreLog, cascade_check_faithfulne
 from drift.self_consistency import check_self_consistency
 from redteam.laya_cascade import ACCURACY_POINT_T, COST_POINT_T
 
+def _parse_bool_env(value: str) -> bool:
+    return value.lower() in ("1", "true", "yes")
+
+
+LAYA_CASCADE_OPERATING_POINTS = {"accuracy": ACCURACY_POINT_T, "cost": COST_POINT_T}
+
 # Off by default - enabling this calls Laya (redteam/laya_cascade.py),
 # which requires the laya-bench conda env's `laya` package, not installed
 # in the main argus env this sampler otherwise runs in. See
 # PROJECT_DESC.md's "Laya cascade" section for the operating points'
 # origin (fit on the sweep split, evaluated once on test).
-LAYA_CASCADE_ENABLED = os.environ.get("LAYA_CASCADE_ENABLED", "false").lower() in ("1", "true", "yes")
-LAYA_CASCADE_OPERATING_POINTS = {"accuracy": ACCURACY_POINT_T, "cost": COST_POINT_T}
+LAYA_CASCADE_ENABLED = _parse_bool_env(os.environ.get("LAYA_CASCADE_ENABLED", "false"))
 LAYA_CASCADE_OPERATING_POINT = os.environ.get("LAYA_CASCADE_OPERATING_POINT", "accuracy")
 
 # Questions with no basis in catalog.json/policies.json.
@@ -165,7 +170,24 @@ def _summarize(results: list[DriftCheckResult]) -> None:
             print(f"      expected={r.expected!r} actual={r.actual!r} score={r.score}")
 
 
+def _selftest_cascade_config() -> None:
+    """Pure-logic check for the config flag parsing - no live calls, no
+    env manipulation needed since _parse_bool_env takes the value in
+    directly."""
+    assert _parse_bool_env("true") is True
+    assert _parse_bool_env("1") is True
+    assert _parse_bool_env("yes") is True
+    assert _parse_bool_env("false") is False
+    assert _parse_bool_env("") is False
+    assert _parse_bool_env("no") is False
+    assert LAYA_CASCADE_OPERATING_POINTS["accuracy"] == ACCURACY_POINT_T
+    assert LAYA_CASCADE_OPERATING_POINTS["cost"] == COST_POINT_T
+    print("cascade config self-check passed.")
+
+
 def main():
+    _selftest_cascade_config()
+
     if not os.environ.get("GEMINI_API_KEY"):
         print("GEMINI_API_KEY not set - skipping live run.")
         return
