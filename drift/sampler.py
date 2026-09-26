@@ -15,6 +15,7 @@ chart is a real timeline rather than one synthetic batch.
 
 import asyncio
 import os
+import sys
 import uuid
 
 from agent.reference_agent import ask_async, load_ground_truth
@@ -187,6 +188,15 @@ def _selftest_cascade_config() -> None:
 
 def main():
     _selftest_cascade_config()
+
+    if "--self-check" in sys.argv:
+        # Exits here, before any API key check or network/Supabase call -
+        # `python -m drift.sampler` alone (no flag) falls through to a real
+        # live run whenever GEMINI_API_KEY happens to be set, which is
+        # exactly how an earlier session's smoke test accidentally created
+        # a real (incomplete) row in Supabase. This flag is the only
+        # sanctioned way to run just the pure self-test.
+        return
 
     if not os.environ.get("GEMINI_API_KEY"):
         print("GEMINI_API_KEY not set - skipping live run.")

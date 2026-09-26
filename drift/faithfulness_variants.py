@@ -20,6 +20,7 @@ import asyncio
 import json
 import os
 import re
+import sys
 from dataclasses import asdict, dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -482,6 +483,15 @@ def _selftest_checks() -> None:
 async def main() -> None:
     _selftest_dedupe()
     _selftest_checks()
+
+    if "--self-check" in sys.argv:
+        # Exits here, before any API key check or Groq/Gemini call. Bare
+        # `python -m drift.faithfulness_variants` falls through to a full
+        # regeneration (~336 Groq calls) whenever GROQ_API_KEY is set,
+        # which would silently overwrite the already-reviewed,
+        # hand-labeled data/faithfulness_variants.jsonl. This flag is the
+        # only sanctioned way to run just the pure self-tests.
+        return
 
     if not os.environ.get("GROQ_API_KEY"):
         print("GROQ_API_KEY not set - skipping generation.")
