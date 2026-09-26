@@ -479,11 +479,88 @@ saved numbers on escalated rows.
   qualifying t, not the peak - it picks the cheapest option that clears
   the bar, not the best one. 0 escalation errors throughout the curve
   (RAGAS never errored on sweep). Full curve: `data/laya_faithfulness_threshold_sweep.jsonl`.
-- **Not yet decided:** whether "lowest t" is really the right rule to
-  carry into Step 4's test-split evaluation given this degenerate
-  outcome, since it discards the cascade's actual accuracy advantage
-  observed at higher t - flagged here for a decision before Step 4, not
-  changed unilaterally.
+- **Resolved (2026-09-27) — two operating points, both fixed before
+  touching test:**
+  - **Cost point, t=0.50** - from the original lowest-t rule. Laya
+    decides every row alone; this is the cheapest point that still clears
+    the balanced-accuracy bar.
+  - **Accuracy point, t=0.80** - the threshold that maximized cascade
+    balanced accuracy on the sweep curve (0.8732, 41.8% handled alone).
+  - **Disclosed explicitly:** the accuracy point was added AFTER seeing
+    the sweep curve - it is not blind to sweep in the way the cost point
+    is. It was picked by eyeballing the curve's peak, not by an
+    independent pre-registered rule. The test split was untouched when
+    both points were fixed - this order (see two rows above) is what
+    keeps the test-split numbers honest despite the accuracy point being
+    curve-selected.
+  - **Named limitation:** t=0.80 was selected as the best of 51
+    thresholds evaluated on 134 sweep rows. Some optimism on test is
+    expected purely from that selection - a curve-picked maximum
+    regresses toward the mean on a fresh sample, and 134 rows leaves
+    real sampling noise in exactly where the true peak sits. Report the
+    accuracy point's test-split number as "test result for the
+    sweep-selected point," not as an independent confirmation that 0.80
+    is the true optimal threshold.
+
+- **RAGAS false alarms on sweep, investigated (2026-09-27):** RAGAS
+  wrongly flags 21/62 (33.9%) of sweep-split faithful rows as unfaithful
+  at its 0.7 threshold - all 21 are `faithful_paraphrase` rows, 0 from any
+  other type. This repo's ragas version doesn't expose per-statement
+  verdicts (`result.reason` and `result.traces` are both `None` on
+  `Faithfulness.ascore()` output - checked directly), so the pattern below
+  is inferred from the score fractions (0.5 ≈ 1 of 2 decomposed
+  sub-claims judged unsupported, 0.333 ≈ 1 of 3, 0.0 ≈ all) plus manual
+  reading, not a retrieved list of which exact statements RAGAS rejected.
+
+  Six examples (answer / claims / score):
+  1. **score=0.5** - *"Sure thing! We'll need a valid order ID before we
+     can issue any refunds."* vs. claims incl. "A valid order ID is
+     required to process any refund." - the claim is stated almost
+     verbatim; RAGAS still splits the sentence into two propositions
+     ("an order ID is needed" + an implicit "we will issue refunds"
+     promise) and can't verify the second against a literal bullet.
+  2. **score=0.667** - *"...you are welcome to exchange such items for
+     other products. Please contact customer support to arrange an
+     exchange."* vs. "...not eligible for refund, only exchange." - the
+     added operational detail ("contact customer support to arrange it")
+     is a reasonable inference from "only exchange," not a new fact, but
+     reads as its own unverifiable sub-claim.
+  3. **score=0.0** - *"Hey! Just a heads-up - if you bought something in
+     our clearance sale, we can't offer a refund, but you're welcome to
+     exchange it for another item."* - same claim as #2, fully accurate,
+     scored 0.0. The friendly framing ("Hey! Just a heads-up") is the
+     likeliest extra "claim" being counted and failing verification -
+     this is the clearest case matching conversational filler getting
+     treated as a claim.
+  4. **score=0.333** - *"For any purchase that totals more than 999
+     rupees, customers are eligible for free standard shipping. This
+     means we'll handle the shipping cost at no additional charge, so you
+     only pay for your items."* vs. "Orders above 999 rupees qualify for
+     free standard shipping." - the elaboration ("we'll handle the cost,"
+     "you only pay for items") restates the same fact in different words
+     but reads as 1-2 additional unverifiable propositions.
+  5. **score=0.333** - *"Under our standard domestic shipping policy,
+     orders are delivered within 3-5 business days. This timeframe
+     accounts for typical processing times and logistics, ensuring
+     timely receipt of your purchase."* vs. "Standard domestic delivery
+     takes 3 to 5 business days." - same pattern: an explanatory second
+     sentence that adds no new fact still counts against the score.
+  6. **score=0.5** - *"If you change your mind before it ships, just let
+     us know and we'll cancel it - no fee at all!"* vs. "Orders can be
+     cancelled free of charge only before they have shipped." - "just let
+     us know" (a generic courtesy/process line) is plausibly the second
+     decomposed claim RAGAS can't verify.
+
+  **Pattern: conversational/detailed-style elaboration, not fabrication.**
+  Every one of the 21 flagged rows is a `faithful_paraphrase` row in the
+  `conversational` or `detailed` style (never `short`) - the styles that
+  add courtesy framing or an explanatory second sentence. RAGAS's claim
+  decomposition splits these into multiple atomic propositions and
+  penalizes any clause that paraphrases-with-elaboration rather than
+  restating a claim near-verbatim, even when nothing false or unsupported
+  was actually said. This matches the labeling rule's own "generic
+  courtesy lines are fine" carve-out almost exactly - RAGAS doesn't make
+  that carve-out, humans reviewing this set did.
 
 ### Step 4 — evaluation (plan only)
 
