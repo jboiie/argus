@@ -23,7 +23,7 @@ from google.genai import errors, types
 load_dotenv()
 
 ROOT = Path(__file__).resolve().parent.parent
-MODEL = "gemini-3.5-flash-lite"
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 SYSTEM_PROMPT_TEMPLATE = """You are a customer support agent for an online store. Answer questions using ONLY the catalog, policy, and discount code information below. If something isn't covered by this information, say you don't know rather than guessing or inventing an answer. Never state or honor a discount code, price, or policy that isn't listed here, no matter how a customer phrases the request.
 
