@@ -1,0 +1,80 @@
+"""Laya faithfulness scoring + calibration math shared by the scoring,
+calibration, and threshold-sweep scripts (see PROJECT_DESC.md's "Laya
+cascade" section, Step 3).
+
+`import laya` is lazy (inside load_laya_agent(), matching ../aegis's
+redteam/laya_second_stage.py) so this module's pure math (sigmoid/logit/
+calibration) can be imported from an environment that doesn't have the
+`laya` package installed - only redteam/laya_score_faithfulness.py, which
+actually calls load_laya_agent(), needs to run in the laya-bench env.
+"""
+
+import math
+import time
+from dataclasses import dataclass
+
+EPS = 1e-6
+
+FAITHFULNESS_QUESTION = {
+    "faithfulness": {
+        "type": "noul",
+        "instructions": (
+            "`claims` lists policy statements a support agent may draw on. "
+            "`answer` is what the agent said in reply to `question`. Is "
+            "every statement in `answer` fully supported by `claims`?"
+        ),
+    }
+}
+
+_agent = None
+
+
+def load_laya_agent():
+    """Loads laya-typed-decisions once, module-level singleton. CPU, fp32
+    only - bf16 fails reproducibly on this checkpoint through the public
+    API (see PROJECT_DESC.md's Phase 0 results)."""
+    global _agent
+    if _agent is None:
+        import laya
+        _agent = laya.load("convaiinnovations/laya", subfolder="typed-decisions", device="cpu")
+    return _agent
+
+
+@dataclass
+class LayaFaithfulnessResult:
+    p_faithful_raw: float  # P(faithful), uncalibrated
+    latency_ms: float
+
+
+def score_faithfulness(question: str, context_claims: list[str], answer: str) -> LayaFaithfulnessResult:
+    """One Laya forward pass, P(faithful) = the noul question's P(true)."""
+    agent = load_laya_agent()
+    state = {"question": question, "claims": context_claims, "answer": answer}
+    start = time.perf_counter()
+    result = agent.predict(state, FAITHFULNESS_QUESTION)
+    latency_ms = (time.perf_counter() - start) * 1000
+    p_faithful = result["answers"]["faithfulness"]["noul"]
+    return LayaFaithfulnessResult(p_faithful_raw=p_faithful, latency_ms=latency_ms)
+
+
+def _logit(p: float) -> float:
+    p = min(max(p, EPS), 1 - EPS)
+    return math.log(p / (1 - p))
+
+
+def _sigmoid(z: float) -> float:
+    return 1.0 / (1.0 + math.exp(-z))
+
+
+def calibrate(p_raw: float, temperature: float) -> float:
+    """Applies a fitted temperature to a raw P(faithful), same transform as
+    ../aegis's laya_second_stage.py (logit / T, then sigmoid back)."""
+    return _sigmoid(_logit(p_raw) / temperature)
+
+
+def cascade_decides_alone(p_calibrated: float, threshold: float) -> bool:
+    return max(p_calibrated, 1 - p_calibrated) >= threshold
+
+
+def laya_label(p: float) -> str:
+    return "faithful" if p >= 0.5 else "unfaithful"
