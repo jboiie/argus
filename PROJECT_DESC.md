@@ -623,6 +623,84 @@ errors, RAGAS-tuned threshold recomputed from sweep's saved scores only
 
 Full breakdown: `data/laya_faithfulness_eval.json`.
 
+**Step 4 follow-up (2026-09-27), all from saved test scores, no new
+calls** (`redteam/laya_test_analysis.py`):
+
+*McNemar exact test (discordant pairs, two-sided binomial, p=0.5):*
+
+| Comparison | A-right/B-wrong | A-wrong/B-right | p-value |
+|---|---|---|---|
+| cascade@0.80 vs RAGAS@0.7 | 5 | 0 | 0.0625 |
+| cascade@0.80 vs Laya-only | 10 | 5 | 0.3018 |
+| Laya-only vs RAGAS@0.7 | 10 | 10 | 1.0000 |
+
+None of the three pairwise differences reach p<0.05 on this n=84 test
+split - the cascade-vs-RAGAS gap (5 vs 0 discordant, the closest to
+significant) would need a larger sample to confirm as more than noise.
+**Read the balanced-accuracy table above as suggestive, not statistically
+confirmed, given this sample size.**
+
+*Per-claim balanced accuracy (4 test claims):*
+
+| Claim | n | RAGAS@0.7 | Laya-only | cascade@0.80 |
+|---|---|---|---|---|
+| `policy_cancellation_shipped` | 20 | 0.8125 | 0.7917 | **0.8750** |
+| `policy_refund_processing_time` | 23 | 0.9091 | 0.9091 | **1.0000** |
+| `policy_shipping_international` | 19 | 0.7949 | **0.9231** | 0.8782 |
+| `policy_warranty_exclusions` | 22 | 0.9091 | **0.9545** | **0.9545** |
+
+**The cascade's advantage does NOT hold on every claim.** It wins or ties
+on 3 of 4 (`cancellation_shipped`, `refund_processing_time` - perfect
+score, `warranty_exclusions` - tied with Laya-only), but on
+`policy_shipping_international` pure Laya-only (0.9231) beats the cascade
+(0.8782), which in turn still beats RAGAS-only (0.7949). The overall
+test-set win is not uniform across claims - one claim's escalations to
+RAGAS actively hurt the cascade relative to just trusting Laya alone
+there.
+
+*Latency, explained:* Laya per-row on test: **mean=769ms**, p50=537ms,
+p95=1408ms - notably higher than Phase 0's ~160ms/271ms estimate. The gap
+is the batching, not the input: Phase 0's number came from
+`guard_questions()`, a 5-question batch in one forward pass, divided by 5
+to get a "per question" figure - that amortizes one fixed per-call cost
+(tokenization + a CPU forward pass) across 5 answers. Every call in this
+step asks exactly ONE question (`faithfulness`), so it pays that same
+fixed overhead alone, undivided - it was never going to land near the
+Phase 0 number, because Phase 0 measured a different call shape. State
+serialization (question + all of a topic's claims + the answer, as JSON)
+is somewhat longer than a bare `text` field too, but the 5x batching
+divisor is the dominant factor, not input length. **Cost point
+(t=0.50) = pure Laya, same numbers: mean=769ms, p50=537ms, p95=1408ms.
+Accuracy point (t=0.80): mean=3237ms, p50=1845ms, p95=11802ms** (escalated
+rows add RAGAS's own latency on top).
+
+**Value split, stated plainly:** the accuracy point (t=0.80) buys
++0.069 balanced accuracy over RAGAS-only (0.9340 vs 0.8646, not
+statistically confirmed per McNemar above) plus 38.1% fewer LLM calls
+(32/84 handled by Laya alone) - but it is SLOWER per check than RAGAS
+alone would suggest at first glance is impossible: 62% of rows still pay
+Laya's latency ON TOP OF RAGAS's, so mean latency (3237ms) is higher than
+RAGAS-only's own mean would be. **The latency win belongs to the cost
+point** (t=0.50, mean=769ms, ~4.2x faster than the accuracy point), not
+the accuracy point - a deployment choosing the accuracy point is trading
+latency for accuracy and call-count savings, not getting all three.
+
+**Two additional findings for the record:**
+- **RAGAS threshold overfitting, confirmed:** the sweep-tuned threshold
+  (t=1.0) scored WORSE on test (0.8368 balanced accuracy) than the
+  existing default (t=0.7, 0.8646) - the threshold that looked best on
+  134 sweep rows didn't generalize, a direct demonstration of why the
+  threshold rule is fit on sweep and evaluated on test rather than picked
+  and reported from the same split.
+- **RAGAS false-alarm pattern** (documented in Step 3 above): 33.9% of
+  sweep faithful rows wrongly flagged, concentrated entirely in
+  `faithful_paraphrase` conversational/detailed variants, from claim
+  decomposition penalizing courtesy framing and explanatory elaboration
+  as unverifiable sub-claims. Carried forward here as a standing finding,
+  not just a sweep-split curiosity - it plausibly explains part of why
+  RAGAS-only's faithful recall (0.75 @ 0.7, 0.694 tuned) trails its own
+  unfaithful recall (0.979 both) on test too.
+
 ### Step 5 — live integration and dashboard (plan only)
 
 **Files (not yet built):**
