@@ -19,7 +19,18 @@ import uuid
 
 from agent.reference_agent import ask_async, load_ground_truth
 from drift.diff import DriftCheckResult, check_faithfulness, check_numeric
+from drift.laya_cascade_check import LayaDriftScoreLog, cascade_check_faithfulness
 from drift.self_consistency import check_self_consistency
+from redteam.laya_cascade import ACCURACY_POINT_T, COST_POINT_T
+
+# Off by default - enabling this calls Laya (redteam/laya_cascade.py),
+# which requires the laya-bench conda env's `laya` package, not installed
+# in the main argus env this sampler otherwise runs in. See
+# PROJECT_DESC.md's "Laya cascade" section for the operating points'
+# origin (fit on the sweep split, evaluated once on test).
+LAYA_CASCADE_ENABLED = os.environ.get("LAYA_CASCADE_ENABLED", "false").lower() in ("1", "true", "yes")
+LAYA_CASCADE_OPERATING_POINTS = {"accuracy": ACCURACY_POINT_T, "cost": COST_POINT_T}
+LAYA_CASCADE_OPERATING_POINT = os.environ.get("LAYA_CASCADE_OPERATING_POINT", "accuracy")
 
 # Questions with no basis in catalog.json/policies.json.
 #
@@ -68,23 +79,27 @@ def _faithfulness_question(topic: str) -> str:
     return f"What is your {topic} policy?"
 
 
-async def run_session(session_id: str) -> list[tuple[DriftCheckResult, list[str]]]:
+async def run_session(session_id: str) -> list[tuple[DriftCheckResult, list[str], LayaDriftScoreLog | None]]:
     """Returns each result paired with the RAW agent text(s) that produced
     it - not r.actual, which for a numeric check is the parsed number, not
     what the agent actually said. Needed separately so the audit trail
-    (session_turns) shows the real conversation, not our extraction of it."""
+    (session_turns) shows the real conversation, not our extraction of it.
+    The third element is only ever set for a faithfulness check made
+    through the Laya cascade (LAYA_CASCADE_ENABLED); every other check
+    type carries None."""
     products, policies = load_ground_truth()
-    results: list[tuple[DriftCheckResult, list[str]]] = []
+    results: list[tuple[DriftCheckResult, list[str], LayaDriftScoreLog | None]] = []
 
     for product in products:
         question = _numeric_question(product)
         answer = await ask_async(question)
-        results.append((check_numeric(question, product["id"], product["price"], answer), [answer]))
+        results.append((check_numeric(question, product["id"], product["price"], answer), [answer], None))
 
     topics: dict[str, list[dict]] = {}
     for policy in policies:
         topics.setdefault(policy["topic"], []).append(policy)
 
+    threshold = LAYA_CASCADE_OPERATING_POINTS[LAYA_CASCADE_OPERATING_POINT]
     for topic, claims in topics.items():
         question = _faithfulness_question(topic)
         answer = await ask_async(question)
@@ -96,26 +111,34 @@ async def run_session(session_id: str) -> list[tuple[DriftCheckResult, list[str]
         # other real claims it also (correctly) mentions. See BUGS.md.
         context = [c["claim"] for c in claims]
         for claim in claims:
-            result = await check_faithfulness(question, claim["id"], claim["claim"], answer, context_claims=context)
-            results.append((result, [answer]))
+            if LAYA_CASCADE_ENABLED:
+                result, laya_log = await cascade_check_faithfulness(
+                    topic, question, claim["id"], claim["claim"], answer, context, threshold,
+                )
+            else:
+                result = await check_faithfulness(question, claim["id"], claim["claim"], answer, context_claims=context)
+                laya_log = None
+            results.append((result, [answer], laya_log))
 
     for question, ref in UNCOVERED_QUESTIONS:
         result = await check_self_consistency(question, ref)
-        results.append((result, result.sampled_responses or []))
+        results.append((result, result.sampled_responses or [], None))
 
     return results
 
 
 async def run_and_log(run_id: str, supabase) -> list[DriftCheckResult]:
-    from telemetry.supabase_client import log_drift_incident, log_session_turn
+    from telemetry.supabase_client import log_drift_incident, log_laya_drift_score, log_session_turn
 
     session_id = str(uuid.uuid4())
-    pairs = await run_session(session_id)
+    triples = await run_session(session_id)
     if supabase:
         turn_index = 0
-        for r, raw_answers in pairs:
+        for r, raw_answers, laya_log in triples:
             try:
-                log_drift_incident(supabase, r, run_id, session_id)
+                incident_id = log_drift_incident(supabase, r, run_id, session_id)
+                if laya_log is not None:
+                    log_laya_drift_score(supabase, incident_id, laya_log)
             except Exception as exc:
                 # One row's schema/write failure shouldn't discard every
                 # other successfully-computed result in the batch - matches
@@ -130,7 +153,7 @@ async def run_and_log(run_id: str, supabase) -> list[DriftCheckResult]:
                     turn_index += 1
             except Exception as exc:
                 print(f"  (failed to log session turn: {exc})")
-    return [r for r, _ in pairs]
+    return [r for r, _, _ in triples]
 
 
 def _summarize(results: list[DriftCheckResult]) -> None:
