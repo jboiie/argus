@@ -1,0 +1,24 @@
+{
+  "temperature": 0.72,
+  "class_balance_method": "class_balanced_weighting",
+  "n_calibration_rows": 88,
+  "n_faithful": 30,
+  "n_unfaithful": 58,
+  "score_definition": "s_raw = p_faithful_raw; calibrated = sigmoid(logit(s_raw)/T)",
+  "ece_before": {
+    "ece_combined": 0.20569090909090917,
+    "ece_faithful": 0.14044280908152754,
+    "ece_unfaithful": 0.23943992633714095,
+    "n_faithful": 30,
+    "n_unfaithful": 58
+  },
+  "ece_after": {
+    "ece_combined": 0.23439013453875882,
+    "ece_faithful": 0.1745230953646047,
+    "ece_unfaithful": 0.2653558444564248,
+    "n_faithful": 30,
+    "n_unfaithful": 58
+  },
+  "temperature_grid_min": 0.3,
+  "temperature_grid_max": 3.0
+}
