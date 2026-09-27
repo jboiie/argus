@@ -2,11 +2,11 @@
 
 Argus is a QA and monitoring layer for AI agents that handle commerce: checkout, refunds, payments. It attacks a reference commerce agent before it ships, keeps checking it after it's live, and gates every money-moving action behind a deterministic authorization check instead of trusting the agent's own word.
 
-It started as a submission to a Razorpay buildathon. I kept building it afterward as a standalone portfolio project, which is where the Laya cascade work described below came from — it's not part of the original submission.
+I built it for Razorpay's AI Buildathon, missed the submission deadline, and kept building it as a standalone project. The Laya cascade work below came after the buildathon.
 
 ## Results at a glance
 
-Red-teaming the reference agent's own mandate gate found a real authorization bypass (50.0% attack success rate), now fixed. A confidence-gated [Laya](https://github.com/NandhaKishorM/laya) cascade in front of the drift sentinel's RAGAS Faithfulness check beats RAGAS alone on the 84-row test split while skipping an LLM call on 38% of checks — though at n=84 the improvement is directionally consistent, not statistically significant.
+Red-teaming the reference agent's own mandate gate found a real authorization bypass, mandate-bypass attack success rate 50.0% before the fix, 0.0% after, with a genuine confirmation still authorizing. A confidence-gated [Laya](https://github.com/NandhaKishorM/laya) cascade in front of the drift sentinel's RAGAS Faithfulness check scores higher than RAGAS alone on the 84-row test split while skipping an LLM call on 38% of checks, though at n=84 the improvement is directionally consistent, not statistically significant.
 
 | Method (test split, 4 claims, n=84) | Balanced accuracy |
 |---|---|
@@ -14,7 +14,7 @@ Red-teaming the reference agent's own mandate gate found a real authorization by
 | Laya-only | 0.8889 [0.761, 0.949] |
 | Cascade @ 0.80 (accuracy point) | 0.9340 [0.819, 0.976] |
 
-Cascade vs. RAGAS by McNemar's exact test: 5-0 on discordant rows, p=0.0625 — consistent direction, not significant at this sample size. See the [Dashboard](#dashboard) for the live view and [Adding Laya](#adding-laya-a-confidence-gated-cascade-for-drift-faithfulness-checks) below for the full build.
+Cascade vs. RAGAS by McNemar's exact test: 5-0 on discordant rows, p=0.0625, consistent direction, not significant at this sample size. See the screenshots in [Dashboard](#dashboard) below and [Adding Laya](#adding-laya-a-confidence-gated-cascade-for-drift-faithfulness-checks) for the full build.
 
 ## Why this exists
 
