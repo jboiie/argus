@@ -63,6 +63,16 @@ export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: R
     [incidents, runId],
   );
 
+  // laya_drift_scores has no run_id column of its own (only incident_id),
+  // so scoping it to the selected run means joining through drift_incidents
+  // - reuses the same runId the rest of this page is already scoped to,
+  // rather than a second, independent selector.
+  const scopedIncidentIds = useMemo(() => new Set(scoped.map((i) => i.incident_id)), [scoped]);
+  const scopedLayaScores = useMemo(
+    () => (runId ? layaScores.filter((s) => scopedIncidentIds.has(s.incident_id)) : layaScores),
+    [layaScores, runId, scopedIncidentIds],
+  );
+
   const flagged = scoped.filter((i) => i.flagged);
   const erroredCount = scoped.filter((i) => i.check_status === "errored").length;
   const timeline = useMemo(() => driftIncidentsOverTime(scoped), [scoped]);
@@ -299,22 +309,24 @@ export function Drift({ incidents, runs }: { incidents: DriftIncident[]; runs: R
               No laya_drift_scores rows yet — apply scripts/migrate_004_laya_drift_scores.sql and run
               drift/sampler.py with LAYA_CASCADE_ENABLED=true.
             </Empty>
+          ) : scopedLayaScores.length === 0 ? (
+            <Empty>No laya_drift_scores rows for this run — try "All runs" above.</Empty>
           ) : (
             <StatStrip>
-              <Stat label="Checks logged" value={layaScores.length} />
+              <Stat label="Checks logged" value={scopedLayaScores.length} />
               <Stat
                 label="Decided by Laya"
-                value={`${((layaScores.filter((s) => s.decided_by === "laya").length / layaScores.length) * 100).toFixed(0)}%`}
+                value={`${((scopedLayaScores.filter((s) => s.decided_by === "laya").length / scopedLayaScores.length) * 100).toFixed(0)}%`}
                 tone="brand"
               />
               <Stat
                 label="Escalated to RAGAS"
-                value={layaScores.filter((s) => s.decided_by === "ragas").length}
+                value={scopedLayaScores.filter((s) => s.decided_by === "ragas").length}
               />
               <Stat
                 label="Escalation errors"
-                value={layaScores.filter((s) => s.errored).length}
-                tone={layaScores.some((s) => s.errored) ? "errored" : "default"}
+                value={scopedLayaScores.filter((s) => s.errored).length}
+                tone={scopedLayaScores.some((s) => s.errored) ? "errored" : "default"}
               />
             </StatStrip>
           )}
