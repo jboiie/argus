@@ -42,6 +42,17 @@ Five tabs, all reading the same Supabase tables live: an **Overview** walkthroug
 |---|
 | ![Mandates tab](docs/screenshots/mandates.png) |
 
+The dashboard runs locally, it isn't hosted, so here's what it looks like. Three more views, added with the Laya cascade work:
+
+![Drift tab, Laya cascade panel: sweep threshold curve with both operating points marked, and the test-split comparison table](docs/images/laya-panel.png)
+*Drift tab, Laya cascade panel: the sweep curve with both operating points marked, and the test-split comparison table.*
+
+![Red Team tab: attack success rate by category, all 10 OWASP ASI categories plus the 4 commerce-specific vulnerabilities](docs/images/redteam-results.png)
+*Red Team tab: attack success rate by category, keyword-gate era vs. all runs cumulative.*
+
+![Findings tab: the mandate-bypass finding, three forged-confirmation attacks that were paid, ASR dropping from 50% to 0% after the fix](docs/images/mandate-bypass.png)
+*Findings tab: the mandate-bypass finding, three forged confirmations that got paid before the fix, none after.*
+
 ## Architecture
 
 Everything grounds out in two flat JSON files, `catalog.json` and `policies.json`, the single source of truth every other piece is checked against.
