@@ -4,6 +4,18 @@ Argus is a QA and monitoring layer for AI agents that handle commerce: checkout,
 
 It started as a submission to a Razorpay buildathon. I kept building it afterward as a standalone portfolio project, which is where the Laya cascade work described below came from — it's not part of the original submission.
 
+## Results at a glance
+
+Red-teaming the reference agent's own mandate gate found a real authorization bypass (50.0% attack success rate), now fixed. A confidence-gated [Laya](https://github.com/NandhaKishorM/laya) cascade in front of the drift sentinel's RAGAS Faithfulness check beats RAGAS alone on the 84-row test split while skipping an LLM call on 38% of checks — though at n=84 the improvement is directionally consistent, not statistically significant.
+
+| Method (test split, 4 claims, n=84) | Balanced accuracy |
+|---|---|
+| RAGAS-only @ 0.7 | 0.8646 [0.740, 0.929] |
+| Laya-only | 0.8889 [0.761, 0.949] |
+| Cascade @ 0.80 (accuracy point) | 0.9340 [0.819, 0.976] |
+
+Cascade vs. RAGAS by McNemar's exact test: 5-0 on discordant rows, p=0.0625 — consistent direction, not significant at this sample size. See the [Dashboard](#dashboard) for the live view and [Adding Laya](#adding-laya-a-confidence-gated-cascade-for-drift-faithfulness-checks) below for the full build.
+
 ## Why this exists
 
 Agentic commerce is already live, not experimental. Razorpay's own Agent Studio already has merchants running autonomous agents for dispute resolution and failed-payment recovery. OpenAI is facing an FTC complaint alleging its Instant Checkout agent misrepresented refund eligibility, a real case of agentic commerce hallucination in production. FINRA's Dec 2025 Annual Regulatory Oversight Report explicitly calls for ongoing GenAI output monitoring, not one-time compliance checks.
